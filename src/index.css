@@ -1,96 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Kenya Beauty Infrastructure - Design System
+   Warm, premium, and unmistakably Kenyan */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Primary: Deep Espresso Brown - heritage, earth, warmth */
+    --primary: 24 30% 20%;
+    --primary-foreground: 40 33% 97%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    /* Background: Soft Cream/Ivory - clean, calm, premium */
+    --background: 40 33% 97%;
+    --foreground: 24 30% 15%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    /* Card: Slightly warmer white */
+    --card: 40 30% 99%;
+    --card-foreground: 24 30% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Popover */
+    --popover: 40 30% 99%;
+    --popover-foreground: 24 30% 15%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Secondary: Muted Sage Green - growth, freshness */
+    --secondary: 140 15% 90%;
+    --secondary-foreground: 140 20% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted: Soft warm gray */
+    --muted: 30 10% 93%;
+    --muted-foreground: 24 10% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Accent: Burnt Gold/Bronze - beauty, value, dignity */
+    --accent: 35 70% 45%;
+    --accent-foreground: 40 33% 97%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Terracotta: African warmth (for special highlights) */
+    --terracotta: 18 55% 55%;
+    --terracotta-foreground: 40 33% 97%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Gold: Premium accents */
+    --gold: 42 75% 50%;
+    --gold-foreground: 24 30% 15%;
 
-    --radius: 0.5rem;
+    /* Sage: Calm, growth */
+    --sage: 140 20% 75%;
+    --sage-foreground: 140 25% 20%;
 
-    --sidebar-background: 0 0% 98%;
+    /* Destructive */
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 40 33% 97%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    /* Success */
+    --success: 140 45% 40%;
+    --success-foreground: 40 33% 97%;
 
-    --sidebar-primary: 240 5.9% 10%;
+    /* UI Elements */
+    --border: 30 15% 88%;
+    --input: 30 15% 88%;
+    --ring: 35 70% 45%;
 
-    --sidebar-primary-foreground: 0 0% 98%;
+    --radius: 0.75rem;
 
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar */
+    --sidebar-background: 24 25% 12%;
+    --sidebar-foreground: 40 20% 90%;
+    --sidebar-primary: 35 70% 50%;
+    --sidebar-primary-foreground: 24 30% 10%;
+    --sidebar-accent: 24 20% 18%;
+    --sidebar-accent-foreground: 40 20% 90%;
+    --sidebar-border: 24 15% 20%;
+    --sidebar-ring: 35 70% 50%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --primary: 35 65% 55%;
+    --primary-foreground: 24 30% 10%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --background: 24 25% 8%;
+    --foreground: 40 20% 92%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --card: 24 22% 12%;
+    --card-foreground: 40 20% 92%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --popover: 24 22% 12%;
+    --popover-foreground: 40 20% 92%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 140 12% 18%;
+    --secondary-foreground: 140 15% 85%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 24 15% 18%;
+    --muted-foreground: 30 10% 60%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 35 70% 50%;
+    --accent-foreground: 24 30% 10%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --terracotta: 18 50% 50%;
+    --terracotta-foreground: 40 33% 97%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --gold: 42 70% 55%;
+    --gold-foreground: 24 30% 10%;
+
+    --sage: 140 15% 35%;
+    --sage-foreground: 140 15% 90%;
+
+    --destructive: 0 55% 45%;
+    --destructive-foreground: 40 33% 97%;
+
+    --success: 140 40% 45%;
+    --success-foreground: 40 33% 97%;
+
+    --border: 24 15% 22%;
+    --input: 24 15% 22%;
+    --ring: 35 70% 50%;
+
+    --sidebar-background: 24 25% 6%;
+    --sidebar-foreground: 40 20% 90%;
+    --sidebar-primary: 35 70% 55%;
+    --sidebar-primary-foreground: 24 30% 10%;
+    --sidebar-accent: 24 20% 12%;
+    --sidebar-accent-foreground: 40 20% 90%;
+    --sidebar-border: 24 15% 15%;
+    --sidebar-ring: 35 70% 55%;
   }
 }
 
@@ -99,7 +132,78 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', system-ui, sans-serif;
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  /* Touch-friendly tap targets for mobile */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Premium card with subtle shadow */
+  .card-premium {
+    @apply bg-card rounded-xl shadow-sm border border-border/50;
+  }
+
+  /* Warm gradient backgrounds */
+  .gradient-warm {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--background)) 0%,
+      hsl(30 20% 95%) 100%
+    );
+  }
+
+  /* Gold accent gradient */
+  .gradient-gold {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--accent)) 0%,
+      hsl(var(--gold)) 100%
+    );
+  }
+
+  /* Terracotta accent gradient */
+  .gradient-terracotta {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--terracotta)) 0%,
+      hsl(25 60% 50%) 100%
+    );
+  }
+}
+
+@layer utilities {
+  /* Safe area padding for mobile */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Hide scrollbar but allow scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }
