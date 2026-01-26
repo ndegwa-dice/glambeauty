@@ -10,9 +10,9 @@ interface MobileLayoutProps {
 
 export function MobileLayout({ children, className, header, footer }: MobileLayoutProps) {
   return (
-    <div className="min-h-screen flex flex-col bg-background safe-top safe-bottom">
+    <div className="min-h-screen flex flex-col bg-background gradient-subtle safe-top safe-bottom">
       {header && (
-        <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b border-border/50">
+        <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
           {header}
         </header>
       )}
@@ -22,7 +22,7 @@ export function MobileLayout({ children, className, header, footer }: MobileLayo
       </main>
       
       {footer && (
-        <footer className="sticky bottom-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-t border-border/50">
+        <footer className="sticky bottom-0 z-50 bg-background/80 backdrop-blur-xl border-t border-border/50">
           {footer}
         </footer>
       )}

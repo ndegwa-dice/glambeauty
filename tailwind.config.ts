@@ -50,18 +50,18 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Kenya Beauty custom colors
-        terracotta: {
-          DEFAULT: "hsl(var(--terracotta))",
-          foreground: "hsl(var(--terracotta-foreground))",
+        // Premium accent colors
+        pink: {
+          DEFAULT: "hsl(var(--pink))",
+          foreground: "hsl(var(--pink-foreground))",
         },
-        gold: {
-          DEFAULT: "hsl(var(--gold))",
-          foreground: "hsl(var(--gold-foreground))",
+        purple: {
+          DEFAULT: "hsl(var(--purple))",
+          foreground: "hsl(var(--purple-foreground))",
         },
-        sage: {
-          DEFAULT: "hsl(var(--sage))",
-          foreground: "hsl(var(--sage-foreground))",
+        indigo: {
+          DEFAULT: "hsl(var(--indigo))",
+          foreground: "hsl(var(--indigo-foreground))",
         },
         success: {
           DEFAULT: "hsl(var(--success))",
@@ -84,6 +84,7 @@ export default {
         sm: "calc(var(--radius) - 4px)",
         xl: "calc(var(--radius) + 4px)",
         "2xl": "calc(var(--radius) + 8px)",
+        "3xl": "1.5rem",
       },
       fontFamily: {
         sans: ["DM Sans", "system-ui", "sans-serif"],
@@ -123,6 +124,14 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.7" },
         },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+        glow: {
+          "0%, 100%": { boxShadow: "0 0 20px hsl(var(--primary) / 0.3)" },
+          "50%": { boxShadow: "0 0 40px hsl(var(--primary) / 0.5)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -131,6 +140,12 @@ export default {
         "fade-up": "fade-up 0.4s ease-out",
         "slide-in-bottom": "slide-in-bottom 0.3s ease-out",
         "pulse-soft": "pulse-soft 2s ease-in-out infinite",
+        shimmer: "shimmer 2s linear infinite",
+        glow: "glow 2s ease-in-out infinite",
+      },
+      backgroundImage: {
+        "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
+        "gradient-conic": "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
       },
     },
   },

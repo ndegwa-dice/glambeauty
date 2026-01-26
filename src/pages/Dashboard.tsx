@@ -14,9 +14,12 @@ import {
   Settings, 
   LogOut,
   Clock,
-  ChevronRight
+  ChevronRight,
+  Sparkles,
+  Link as LinkIcon
 } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 interface Salon {
   id: string;
@@ -38,6 +41,7 @@ interface TodayBooking {
 export default function Dashboard() {
   const { user, profile, loading, signOut } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [salon, setSalon] = useState<Salon | null>(null);
   const [todayBookings, setTodayBookings] = useState<TodayBooking[]>([]);
   const [loadingData, setLoadingData] = useState(true);
@@ -95,6 +99,16 @@ export default function Dashboard() {
     navigate("/");
   };
 
+  const copyBookingLink = () => {
+    if (salon) {
+      navigator.clipboard.writeText(`${window.location.origin}/salon/${salon.slug}`);
+      toast({
+        title: "Link copied!",
+        description: "Share this link with your clients",
+      });
+    }
+  };
+
   if (loading || loadingData) {
     return <LoadingScreen message="Loading your dashboard..." />;
   }
@@ -105,9 +119,18 @@ export default function Dashboard() {
       <MobileLayout
         header={<PageHeader title="Welcome" />}
       >
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-          <div className="w-20 h-20 rounded-2xl gradient-gold flex items-center justify-center mb-6">
-            <Plus className="w-10 h-10 text-primary-foreground" />
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center relative">
+          {/* Ambient glow */}
+          <div className="fixed inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute top-1/3 left-1/4 w-64 h-64 rounded-full bg-primary/10 blur-[100px]" />
+            <div className="absolute bottom-1/3 right-1/4 w-64 h-64 rounded-full bg-secondary/10 blur-[100px]" />
+          </div>
+
+          <div className="relative inline-block mb-6">
+            <div className="w-20 h-20 rounded-2xl gradient-primary flex items-center justify-center glow-pink">
+              <Plus className="w-10 h-10 text-primary-foreground" />
+            </div>
+            <Sparkles className="absolute -top-2 -right-2 w-6 h-6 text-primary animate-pulse-soft" />
           </div>
           <h2 className="font-display text-2xl font-bold text-foreground mb-2">
             Create Your Salon
@@ -118,7 +141,7 @@ export default function Dashboard() {
           <Button 
             onClick={() => navigate("/onboarding")}
             size="lg"
-            className="h-14 px-8 gradient-gold text-primary-foreground font-semibold touch-target"
+            className="touch-target"
           >
             Get Started
           </Button>
@@ -138,7 +161,7 @@ export default function Dashboard() {
               variant="ghost" 
               size="icon"
               onClick={handleSignOut}
-              className="touch-target"
+              className="touch-target text-muted-foreground hover:text-foreground"
             >
               <LogOut className="w-5 h-5" />
             </Button>
@@ -146,13 +169,19 @@ export default function Dashboard() {
         />
       }
     >
-      <div className="p-4 space-y-6">
+      <div className="p-4 space-y-6 relative">
+        {/* Ambient glow */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-primary/5 blur-[100px]" />
+          <div className="absolute bottom-1/3 left-0 w-64 h-64 rounded-full bg-secondary/5 blur-[100px]" />
+        </div>
+
         {/* Quick Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="card-premium">
+        <div className="grid grid-cols-3 gap-3 relative z-10">
+          <Card className="card-glass">
             <CardContent className="p-4 text-center">
-              <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center mx-auto mb-2">
-                <Calendar className="w-5 h-5 text-accent" />
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-2">
+                <Calendar className="w-5 h-5 text-primary" />
               </div>
               <p className="font-display text-2xl font-bold text-foreground">
                 {todayBookings.length}
@@ -161,10 +190,10 @@ export default function Dashboard() {
             </CardContent>
           </Card>
           
-          <Card className="card-premium">
+          <Card className="card-glass">
             <CardContent className="p-4 text-center">
-              <div className="w-10 h-10 rounded-lg bg-sage/30 flex items-center justify-center mx-auto mb-2">
-                <Users className="w-5 h-5 text-sage-foreground" />
+              <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center mx-auto mb-2">
+                <Users className="w-5 h-5 text-secondary" />
               </div>
               <p className="font-display text-2xl font-bold text-foreground">
                 0
@@ -173,10 +202,10 @@ export default function Dashboard() {
             </CardContent>
           </Card>
           
-          <Card className="card-premium">
+          <Card className="card-glass">
             <CardContent className="p-4 text-center">
-              <div className="w-10 h-10 rounded-lg bg-terracotta/10 flex items-center justify-center mx-auto mb-2">
-                <DollarSign className="w-5 h-5 text-terracotta" />
+              <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center mx-auto mb-2">
+                <DollarSign className="w-5 h-5 text-success" />
               </div>
               <p className="font-display text-2xl font-bold text-foreground">
                 0
@@ -187,7 +216,7 @@ export default function Dashboard() {
         </div>
 
         {/* Today's Bookings */}
-        <Card className="card-premium">
+        <Card className="card-glass relative z-10">
           <CardHeader className="pb-2">
             <CardTitle className="font-display text-lg flex items-center justify-between">
               <span>Today's Bookings</span>
@@ -211,10 +240,10 @@ export default function Dashboard() {
               todayBookings.map((booking) => (
                 <div 
                   key={booking.id}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors border border-border/50"
                 >
-                  <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center flex-shrink-0">
-                    <span className="font-semibold text-accent text-sm">
+                  <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center flex-shrink-0">
+                    <span className="font-semibold text-primary-foreground text-sm">
                       {booking.client_name.charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -241,19 +270,19 @@ export default function Dashboard() {
         </Card>
 
         {/* Quick Actions */}
-        <div className="space-y-2">
+        <div className="space-y-2 relative z-10">
           <h3 className="font-display font-semibold text-foreground px-1">
             Quick Actions
           </h3>
           
           <Button 
             variant="outline" 
-            className="w-full justify-between h-14 touch-target"
+            className="w-full justify-between h-14 touch-target bg-card/50"
             onClick={() => navigate("/services")}
           >
             <span className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
-                <Plus className="w-4 h-4 text-accent" />
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Plus className="w-4 h-4 text-primary" />
               </div>
               <span>Manage Services</span>
             </span>
@@ -262,7 +291,7 @@ export default function Dashboard() {
 
           <Button 
             variant="outline" 
-            className="w-full justify-between h-14 touch-target"
+            className="w-full justify-between h-14 touch-target bg-card/50"
             onClick={() => navigate("/settings")}
           >
             <span className="flex items-center gap-3">
@@ -276,14 +305,17 @@ export default function Dashboard() {
         </div>
 
         {/* Booking Link */}
-        <Card className="card-premium gradient-warm">
+        <Card className="card-glass border-primary/20 relative z-10">
           <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground mb-2">Your booking link</p>
+            <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
+              <LinkIcon className="w-4 h-4" />
+              Your booking link
+            </p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-sm bg-muted px-3 py-2 rounded-lg truncate font-mono">
-                kenyabeauty.app/{salon.slug}
+              <code className="flex-1 text-sm bg-muted/50 px-3 py-2 rounded-lg truncate font-mono text-primary">
+                /salon/{salon.slug}
               </code>
-              <Button size="sm" variant="secondary" className="flex-shrink-0">
+              <Button size="sm" onClick={copyBookingLink} className="flex-shrink-0">
                 Copy
               </Button>
             </div>
