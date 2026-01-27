@@ -154,13 +154,31 @@
     );
   }
 
-  /* Radial glow effect */
+  /* Barbie gradient (pink to rose gold to lavender) */
+  .gradient-barbie {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(330 100% 79%) 50%,
+      hsl(var(--secondary)) 100%
+    );
+  }
+
+  /* Standard glow effect */
   .glow-pink {
     box-shadow: 0 0 40px -10px hsl(var(--primary) / 0.4);
   }
 
   .glow-purple {
     box-shadow: 0 0 40px -10px hsl(var(--secondary) / 0.4);
+  }
+
+  /* Intense barbie glow - multi-layered */
+  .glow-barbie {
+    box-shadow: 
+      0 0 20px hsl(var(--primary) / 0.5),
+      0 0 40px hsl(var(--primary) / 0.3),
+      0 0 60px hsl(var(--primary) / 0.2);
   }
 
   /* Text gradient */
@@ -216,6 +234,27 @@
       inset 0 1px 0 hsl(0 0% 100% / 0.15);
   }
 
+  /* Shimmer glass effect for cards */
+  .shimmer-glass {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer-glass::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--primary) / 0.08) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-barbie 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+
   /* Input focus glow */
   .input-glow:focus-within {
     box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
@@ -261,4 +300,36 @@
     background-color: hsl(var(--muted));
     border-radius: 3px;
   }
+}
+
+/* Barbie-themed keyframes */
+@keyframes shimmer-barbie {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { 
+    box-shadow: 
+      0 0 20px hsl(var(--primary) / 0.4),
+      0 0 40px hsl(var(--primary) / 0.2); 
+  }
+  50% { 
+    box-shadow: 
+      0 0 30px hsl(var(--primary) / 0.6),
+      0 0 60px hsl(var(--primary) / 0.3); 
+  }
+}
+
+@keyframes float-sparkle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(5deg); }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.sparkle-float {
+  animation: float-sparkle 3s ease-in-out infinite;
 }
