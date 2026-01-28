@@ -1,0 +1,166 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+
+type Stylist = Tables<"stylists">;
+type StylistInsert = TablesInsert<"stylists">;
+type StylistUpdate = TablesUpdate<"stylists">;
+
+export interface StylistWithServices extends Stylist {
+  service_ids: string[];
+}
+
+interface UseSalonStylistsReturn {
+  stylists: StylistWithServices[];
+  loading: boolean;
+  addStylist: (stylist: Omit<StylistInsert, "salon_id">, serviceIds: string[]) => Promise<{ error: Error | null }>;
+  updateStylist: (id: string, updates: StylistUpdate, serviceIds?: string[]) => Promise<{ error: Error | null }>;
+  deleteStylist: (id: string) => Promise<{ error: Error | null }>;
+}
+
+export function useSalonStylists(salonId: string | null): UseSalonStylistsReturn {
+  const [stylists, setStylists] = useState<StylistWithServices[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchStylists = async () => {
+    if (!salonId) return;
+
+    // Fetch stylists
+    const { data: stylistsData } = await supabase
+      .from("stylists")
+      .select("*")
+      .eq("salon_id", salonId)
+      .order("name", { ascending: true });
+
+    if (!stylistsData) {
+      setStylists([]);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch service assignments for each stylist
+    const { data: serviceAssignments } = await supabase
+      .from("stylist_services")
+      .select("stylist_id, service_id")
+      .in("stylist_id", stylistsData.map((s) => s.id));
+
+    const stylistsWithServices = stylistsData.map((stylist) => ({
+      ...stylist,
+      service_ids: serviceAssignments
+        ?.filter((sa) => sa.stylist_id === stylist.id)
+        .map((sa) => sa.service_id) || [],
+    }));
+
+    setStylists(stylistsWithServices);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (!salonId) {
+      setStylists([]);
+      setLoading(false);
+      return;
+    }
+
+    fetchStylists();
+
+    // Subscribe to realtime changes
+    const channel = supabase
+      .channel(`stylists_${salonId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "stylists",
+          filter: `salon_id=eq.${salonId}`,
+        },
+        () => {
+          fetchStylists();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [salonId]);
+
+  const addStylist = async (
+    stylist: Omit<StylistInsert, "salon_id">,
+    serviceIds: string[]
+  ): Promise<{ error: Error | null }> => {
+    if (!salonId) return { error: new Error("No salon ID") };
+
+    const { data, error } = await supabase
+      .from("stylists")
+      .insert({
+        ...stylist,
+        salon_id: salonId,
+      })
+      .select()
+      .single();
+
+    if (error || !data) return { error };
+
+    // Add service assignments
+    if (serviceIds.length > 0) {
+      await supabase.from("stylist_services").insert(
+        serviceIds.map((serviceId) => ({
+          stylist_id: data.id,
+          service_id: serviceId,
+        }))
+      );
+    }
+
+    return { error: null };
+  };
+
+  const updateStylist = async (
+    id: string,
+    updates: StylistUpdate,
+    serviceIds?: string[]
+  ): Promise<{ error: Error | null }> => {
+    const { error } = await supabase
+      .from("stylists")
+      .update(updates)
+      .eq("id", id);
+
+    if (error) return { error };
+
+    // Update service assignments if provided
+    if (serviceIds !== undefined) {
+      // Remove existing assignments
+      await supabase.from("stylist_services").delete().eq("stylist_id", id);
+
+      // Add new assignments
+      if (serviceIds.length > 0) {
+        await supabase.from("stylist_services").insert(
+          serviceIds.map((serviceId) => ({
+            stylist_id: id,
+            service_id: serviceId,
+          }))
+        );
+      }
+    }
+
+    return { error: null };
+  };
+
+  const deleteStylist = async (id: string): Promise<{ error: Error | null }> => {
+    // Delete service assignments first
+    await supabase.from("stylist_services").delete().eq("stylist_id", id);
+
+    const { error } = await supabase.from("stylists").delete().eq("id", id);
+
+    return { error };
+  };
+
+  return {
+    stylists,
+    loading,
+    addStylist,
+    updateStylist,
+    deleteStylist,
+  };
+}

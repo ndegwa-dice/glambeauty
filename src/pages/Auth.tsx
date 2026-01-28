@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,13 +9,29 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
+import { RoleSelector } from "@/components/auth/RoleSelector";
 import { Scissors, Sparkles } from "lucide-react";
+
+type Role = "client" | "salon_owner";
 
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn, signUp } = useAuth();
+  const [selectedRole, setSelectedRole] = useState<Role>("client");
+  const { signIn, signUp, user } = useAuth();
+  const { primaryRole, assignRole, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Redirect based on role after login
+  useEffect(() => {
+    if (user && !roleLoading && primaryRole) {
+      if (primaryRole === "salon_owner") {
+        navigate("/dashboard");
+      } else {
+        navigate("/client");
+      }
+    }
+  }, [user, primaryRole, roleLoading, navigate]);
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -32,15 +49,14 @@ export default function Auth() {
         title: "Sign in failed",
         description: error.message,
       });
+      setIsLoading(false);
     } else {
       toast({
         title: "Welcome back!",
         description: "You have signed in successfully.",
       });
-      navigate("/dashboard");
+      // Navigation handled by useEffect
     }
-    
-    setIsLoading(false);
   };
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -60,15 +76,29 @@ export default function Auth() {
         title: "Sign up failed",
         description: error.message,
       });
-    } else {
+      setIsLoading(false);
+      return;
+    }
+
+    // Wait a moment for auth to complete, then assign role
+    setTimeout(async () => {
+      await assignRole(selectedRole);
+      
       toast({
         title: "Account created!",
-        description: "Welcome to Kenya Beauty. Let's set up your salon.",
+        description: selectedRole === "salon_owner" 
+          ? "Welcome to Kenya Beauty. Let's set up your salon."
+          : "Welcome to Kenya Beauty! Start booking your beauty appointments.",
       });
-      navigate("/onboarding");
-    }
-    
-    setIsLoading(false);
+      
+      setIsLoading(false);
+      
+      if (selectedRole === "salon_owner") {
+        navigate("/onboarding");
+      } else {
+        navigate("/client");
+      }
+    }, 1000);
   };
 
   return (
@@ -142,7 +172,16 @@ export default function Auth() {
                 </form>
               </TabsContent>
 
-              <TabsContent value="signup" className="mt-0">
+              <TabsContent value="signup" className="mt-0 space-y-6">
+                {/* Role Selection */}
+                <div className="space-y-3">
+                  <Label className="text-sm text-muted-foreground">I am a...</Label>
+                  <RoleSelector
+                    selectedRole={selectedRole}
+                    onRoleChange={setSelectedRole}
+                  />
+                </div>
+
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-name" className="text-sm text-muted-foreground">Full Name</Label>
