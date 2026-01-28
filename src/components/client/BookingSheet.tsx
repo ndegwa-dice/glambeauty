@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useAvailableSlots } from "@/hooks/useAvailableSlots";
+import { useAutoAssignStylist } from "@/hooks/useAutoAssignStylist";
 import { useToast } from "@/hooks/use-toast";
 import {
   Sheet,
@@ -15,13 +16,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   ArrowLeft, 
   Check, 
   Clock, 
   MapPin, 
   Sparkles,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  User
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DiscoverSalon } from "@/hooks/useDiscoverSalons";
@@ -41,6 +44,7 @@ interface BookingSheetProps {
 export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSheetProps) {
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  const { assignStylist } = useAutoAssignStylist();
 
   const [step, setStep] = useState<BookingStep>("services");
   const [services, setServices] = useState<Service[]>([]);
@@ -49,6 +53,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [assignedStylist, setAssignedStylist] = useState<{ id: string; name: string } | null>(null);
 
   const { slots, loading: slotsLoading } = useAvailableSlots({
     salonId: salon?.id || "",
@@ -84,9 +89,43 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
         setSelectedService(null);
         setSelectedDate(undefined);
         setSelectedTime(null);
+        setAssignedStylist(null);
       }, 300);
     }
   }, [open]);
+
+  // Auto-assign stylist when date and time are selected
+  useEffect(() => {
+    if (!salon || !selectedService || !selectedDate || !selectedTime) {
+      setAssignedStylist(null);
+      return;
+    }
+
+    const findStylist = async () => {
+      const [hours, minutes] = selectedTime.split(":").map(Number);
+      const startMinutes = hours * 60 + minutes;
+      const endMinutes = startMinutes + selectedService.duration_minutes;
+      const endHours = Math.floor(endMinutes / 60);
+      const endMins = endMinutes % 60;
+      const endTime = `${String(endHours).padStart(2, "0")}:${String(endMins).padStart(2, "0")}`;
+
+      const result = await assignStylist({
+        salonId: salon.id,
+        serviceId: selectedService.id,
+        date: format(selectedDate, "yyyy-MM-dd"),
+        startTime: selectedTime,
+        endTime,
+      });
+
+      if (result.stylistId && result.stylistName) {
+        setAssignedStylist({ id: result.stylistId, name: result.stylistName });
+      } else {
+        setAssignedStylist(null);
+      }
+    };
+
+    findStylist();
+  }, [salon, selectedService, selectedDate, selectedTime, assignStylist]);
 
   const handleServiceSelect = (service: Service) => {
     setSelectedService(service);
@@ -117,6 +156,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       end_time: endTime,
       total_amount: selectedService.price,
       deposit_amount: selectedService.deposit_amount,
+      stylist_id: assignedStylist?.id || null,
     });
 
     setSubmitting(false);
@@ -302,6 +342,17 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                     </span>
                     <span className="text-foreground">{selectedTime}</span>
                   </div>
+                  {assignedStylist && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground flex items-center gap-2">
+                        <User className="w-3.5 h-3.5" />
+                        Stylist
+                      </span>
+                      <span className="text-foreground font-medium text-gradient">
+                        {assignedStylist.name}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-between pt-3 border-t border-border/30">
@@ -312,6 +363,23 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                 </div>
               </CardContent>
             </Card>
+
+            {/* Stylist Assignment Notice */}
+            {assignedStylist && (
+              <div className="flex items-center gap-3 p-3 bg-primary/10 border border-primary/30 rounded-xl">
+                <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center glow-barbie">
+                  <User className="w-5 h-5 text-primary-foreground" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-foreground">
+                    {assignedStylist.name} will be your stylist
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Automatically assigned based on availability
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-3">
