@@ -1,351 +1,359 @@
 
-# Client Barbie Dashboard - Your One-Stop Beauty Shop
+# Two-Way Authentication & Real-Time Dashboard System
 
 ## Overview
-Transform `/salon/:slug` into a stunning, girly client dashboard with a "Barbie" aesthetic - think pink glows, sparkles, and premium glass effects. This will be the client's personal beauty command center where they can discover salons, browse services, book appointments, and track their bookings - all synced in real-time with salon owners.
+Build a comprehensive two-way authentication system separating **Clients** from **Salon Owners**, with role-specific dashboards that sync in real-time. Include service card management for salons, stylists handling, and automatic slot allocation with stylist assignment.
 
 ---
 
-## Visual Identity: "Glamour Barbie Edition"
+## Current State Analysis
 
-### Enhanced Color Scheme
-- **Hot Pink Primary**: `#E879F9` with intense glowing effects
-- **Rose Gold Accents**: `#F9A8D4` for elegant touches
-- **Soft Lavender**: `#A78BFA` for secondary elements
-- **Deep Plum Background**: `#0D0D0F` maintaining the dark premium feel
-- **Sparkle White**: `#FAFAFA` for text and highlights
+### What Already Exists
+- Basic auth (`signUp`, `signIn`, `signOut`) in `useAuth.tsx`
+- Single auth page (`/auth`) for both login and signup
+- `user_roles` table with `app_role` enum: `salon_owner`, `stylist`, `client`
+- Salon dashboard (`/dashboard`) - currently assumes everyone is a salon owner
+- Client dashboard (`/client`) - separate page but no role check
+- Real-time bookings subscription already working
+- `stylists` table exists with `salon_id` foreign key
+- `stylist_services` junction table for service assignments
+- `bookings` table has `stylist_id` column (nullable)
 
-### New CSS Effects
-```text
-.glow-barbie        -> Intense multi-layered pink glow
-.shimmer-glass      -> Animated shimmer on glass cards
-.sparkle-border     -> Gradient animated border
-.float-animation    -> Gentle floating motion for decorative elements
-.gradient-barbie    -> Pink to rose gold to lavender gradient
-```
-
-### Decorative Elements
-- Floating sparkle icons
-- Animated gradient orbs in background
-- Heart and star accents
-- Rose gold dividers
-
----
-
-## Dashboard Layout Structure
-
-```text
-+--------------------------------------------------+
-|  Personalized Header                              |
-|  "Hey, [Name]! Ready to glow?" (Sparkles icon)    |
-|  Profile avatar with pink glow ring              |
-+--------------------------------------------------+
-|                                                  |
-|  [===== Real-Time Beauty Calendar =====]         |
-|  Week view with booking dots                     |
-|  Pink dots = upcoming, Purple = completed        |
-|  Tap date to see appointments                    |
-|                                                  |
-+--------------------------------------------------+
-|                                                  |
-|  [===== My Upcoming Appointments =====]          |
-|  Glassy cards with:                              |
-|  - Service name + pretty icon                    |
-|  - Date/time in elegant format                   |
-|  - Stylist avatar + name with glow border        |
-|  - Salon name with location                      |
-|  - Status badge (Confirmed/Pending)              |
-|  - Cancel/Reschedule options                     |
-|                                                  |
-+--------------------------------------------------+
-|                                                  |
-|  [===== Discover Salons =====]                   |
-|  Horizontal scrollable glass cards:              |
-|  - Salon cover image with gradient overlay       |
-|  - Name + location                               |
-|  - "Book Now" pink CTA button                    |
-|                                                  |
-+--------------------------------------------------+
-|                                                  |
-|  Floating "Quick Book" FAB with glow pulse       |
-|                                                  |
-+--------------------------------------------------+
-```
-
----
-
-## New Files to Create
-
-### Components
-1. `src/components/client/ClientDashboard.tsx` - Main dashboard content
-2. `src/components/client/ClientCalendar.tsx` - Real-time week/month calendar
-3. `src/components/client/ClientBookingCard.tsx` - Individual booking display
-4. `src/components/client/SalonDiscovery.tsx` - Horizontal salon browser
-5. `src/components/client/BookingSheet.tsx` - Bottom sheet for new bookings
-6. `src/components/client/StylistCard.tsx` - Display stylist info with services
-7. `src/components/client/DashboardHeader.tsx` - Personalized greeting header
-
-### Hooks
-1. `src/hooks/useClientBookings.ts` - Fetch and subscribe to client's bookings
-2. `src/hooks/useDiscoverSalons.ts` - Fetch active salons for discovery
-
----
-
-## Files to Modify
-
-### Complete Rewrite
-- `src/pages/SalonBooking.tsx` - Replace salon booking with client dashboard
-
-### Style Updates
-- `src/index.css` - Add Barbie glow classes and animations
-
----
-
-## Real-Time Architecture
-
-### Client Bookings Subscription
-```text
-Subscribe to: bookings table
-Filter: client_user_id = current user
-Events: INSERT, UPDATE, DELETE
-Result: Instant calendar and card updates when salon confirms/modifies
-```
-
-### Bi-Directional Sync Flow
-```text
-+------------------+                      +------------------+
-|  Client Makes    |  ----> Supabase ---> |  Salon Dashboard |
-|  New Booking     |       Realtime       |  Updates Instant |
-+------------------+                      +------------------+
-
-+------------------+                      +------------------+
-|  Client Sees     |  <---- Supabase <--- |  Salon Confirms  |
-|  Status Change   |       Realtime       |  Booking         |
-+------------------+                      +------------------+
-```
-
----
-
-## Feature Details
-
-### 1. Personalized Header
-- Greeting based on time of day ("Good morning, [Name]!")
-- User avatar with animated pink glow ring
-- Settings icon with notification badge
-- Logout option in dropdown
-
-### 2. Real-Time Calendar
-- Week view by default (swipe for months)
-- Pink dots for upcoming bookings
-- Purple dots for past/completed
-- Tap date to filter bookings below
-- Uses `react-day-picker` with custom Barbie styling
-
-### 3. Booking Cards
-Each card displays:
-- Service icon (nail, hair, makeup) based on service name
-- Service name in gradient text
-- Date in pretty format ("Sat, Jan 25")
-- Time with clock icon
-- Stylist avatar with glow border (if assigned)
-- Salon name with location pin
-- Status badge with appropriate colors:
-  - Pending: Amber glow
-  - Confirmed: Green glow  
-  - Completed: Purple
-- Action buttons: Reschedule, Cancel
-
-### 4. Salon Discovery
-- Horizontal scroll with snap
-- Glass cards with cover image
-- Gradient overlay with salon name
-- Location badge
-- "Book Now" button with glow
-- Tap card to see services
-
-### 5. Quick Booking Flow (Bottom Sheet)
-When user taps a salon:
-1. Sheet slides up with salon services
-2. User selects service
-3. Date picker appears
-4. Time slots load (real-time availability)
-5. Confirm button creates booking
-6. Success animation with confetti/sparkles
-
----
-
-## Database Queries
-
-### Fetch Client Bookings
-```sql
-SELECT 
-  b.*,
-  s.name as salon_name,
-  s.address as salon_address,
-  s.logo_url,
-  srv.name as service_name,
-  srv.duration_minutes,
-  srv.price,
-  st.name as stylist_name,
-  st.avatar_url as stylist_avatar
-FROM bookings b
-JOIN salons s ON b.salon_id = s.id
-JOIN services srv ON b.service_id = srv.id
-LEFT JOIN stylists st ON b.stylist_id = st.id
-WHERE b.client_user_id = auth.uid()
-ORDER BY b.booking_date DESC, b.start_time ASC
-```
-
-### Fetch Active Salons
-```sql
-SELECT * FROM salons 
-WHERE is_active = true 
-ORDER BY created_at DESC
-```
-
----
-
-## CSS Additions (Barbie Theme)
-
-```css
-/* Intense barbie glow */
-.glow-barbie {
-  box-shadow: 
-    0 0 20px rgba(232, 121, 249, 0.5),
-    0 0 40px rgba(232, 121, 249, 0.3),
-    0 0 60px rgba(232, 121, 249, 0.2);
-}
-
-/* Animated shimmer effect */
-@keyframes shimmer-barbie {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.shimmer-glass {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(232, 121, 249, 0.1) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer-barbie 3s ease-in-out infinite;
-}
-
-/* Floating sparkle animation */
-@keyframes float-sparkle {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-10px) rotate(5deg); }
-}
-
-.sparkle-float {
-  animation: float-sparkle 3s ease-in-out infinite;
-}
-
-/* Rose gold gradient */
-.gradient-barbie {
-  background: linear-gradient(
-    135deg,
-    #E879F9 0%,
-    #F9A8D4 50%,
-    #A78BFA 100%
-  );
-}
-
-/* Pulsing glow for FAB */
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(232, 121, 249, 0.4); }
-  50% { box-shadow: 0 0 40px rgba(232, 121, 249, 0.7); }
-}
-
-.pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
-}
-```
-
----
-
-## User Journey
-
-1. **Client logs in** -> Redirected to `/client` (new route) or dashboard
-2. **Dashboard loads** -> See calendar + upcoming bookings + discover salons
-3. **Browse salons** -> Swipe through discovery carousel
-4. **Tap salon** -> Bottom sheet opens with services
-5. **Select service** -> Date/time picker appears with real-time slots
-6. **Confirm booking** -> Success animation, card appears in "Upcoming"
-7. **Salon confirms** -> Badge updates from "Pending" to "Confirmed" in real-time
-8. **Day of appointment** -> Reminder shown prominently
-
----
-
-## Route Structure
-
-### Option A: New Client Route (Recommended)
-- `/client` - Client dashboard (authenticated clients)
-- `/salon/:slug` - Keep as public booking page for non-authenticated users
-
-### Option B: Replace Salon Booking (Per Request)
-- `/salon/:slug` - Becomes client dashboard
-- Lose public booking capability
-
-**Recommendation**: Create new `/client` route while keeping `/salon/:slug` for public access. But per your request, I'll replace `/salon/:slug` entirely with the client dashboard.
+### What Needs to Be Built
+1. Role selection during signup
+2. Role-based routing after authentication
+3. Enhanced salon dashboard with stylists + services management
+4. Automatic stylist allocation on booking
+5. Real-time sync between client and salon dashboards
 
 ---
 
 ## Authentication Flow
 
-- Dashboard requires authentication
-- If not logged in -> Redirect to `/auth`
-- After login -> User lands on beautiful Barbie dashboard
-- Show client role only (not salon owner view)
+### Signup Flow
+```text
++----------------+     +------------------+     +------------------+
+|  Auth Page     | --> |  Role Selection  | --> |  Onboarding     |
+|  (Email/Pass)  |     |  Client / Salon  |     |  (role-based)   |
++----------------+     +------------------+     +------------------+
+                                                        |
+                          +-----------------------------+
+                          |                             |
+                          v                             v
+                   +-----------+               +----------------+
+                   |  Client   |               |  Salon Owner   |
+                   |  Dashboard|               |  Onboarding    |
+                   |  /client  |               |  /onboarding   |
+                   +-----------+               +----------------+
+```
+
+### Login Flow
+```text
++----------------+     +------------------+
+|  Auth Page     | --> |  Check Role      |
+|  (Email/Pass)  |     |  in user_roles   |
++----------------+     +------------------+
+                              |
+            +-----------------+-----------------+
+            |                                   |
+            v                                   v
+     +-----------+                      +----------------+
+     |  Client   |                      |  Salon Owner   |
+     |  /client  |                      |  /dashboard    |
+     +-----------+                      +----------------+
+```
 
 ---
 
-## Empty States
+## Database Changes
 
-### No Bookings Yet
-```text
-+----------------------------------+
-|         (Nail polish icon)        |
-|   No appointments yet, queen! 💅  |
-|                                   |
-|   "Treat yourself to something    |
-|    beautiful today"               |
-|                                   |
-|   [Browse Salons] (glowing CTA)   |
-+----------------------------------+
+### New Policy for user_roles INSERT
+Currently users cannot insert their own roles. We need to add this capability securely during signup:
+
+```sql
+-- Allow users to assign themselves client role during signup
+CREATE POLICY "Users can assign themselves client role"
+    ON public.user_roles FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        auth.uid() = user_id 
+        AND role = 'client'
+    );
 ```
 
-### No Salons Found
-```text
-+----------------------------------+
-|       (Sparkle icon)              |
-|   Salons coming soon!             |
-|   Check back for amazing beauty   |
-|   spots near you                  |
-+----------------------------------+
+**Note**: Salon owner role is assigned in `Onboarding.tsx` after creating a salon - this already works via the current INSERT that bypasses RLS (needs fix).
+
+### Enable Realtime for More Tables
+```sql
+-- Enable realtime for stylists changes
+ALTER PUBLICATION supabase_realtime ADD TABLE public.stylists;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.services;
 ```
+
+---
+
+## New Hook: useUserRole
+
+Create `src/hooks/useUserRole.ts`:
+- Fetches user's role(s) from `user_roles` table
+- Returns `{ role, loading, hasRole(role) }`
+- Used for conditional routing and UI display
+
+```typescript
+// Example usage
+const { role, loading, hasRole } = useUserRole();
+if (hasRole('salon_owner')) navigate('/dashboard');
+else navigate('/client');
+```
+
+---
+
+## Updated Auth Flow
+
+### Auth Page Modifications
+1. Add role selection tabs/buttons on **signup** only
+2. After signup, automatically assign selected role
+3. After login, check existing role and redirect accordingly
+
+### New Components
+
+**RoleSelector.tsx**
+- Beautiful toggle between "I'm a Client" and "I Own a Salon"
+- Barbie-styled cards with icons
+- Pink glow on selected option
+
+---
+
+## Salon Dashboard Enhancements
+
+### Current Dashboard (`/dashboard`)
+Shows: Today's bookings, quick stats, booking link
+
+### Enhanced Dashboard Structure
+```text
++--------------------------------------------------+
+|  Header: Salon Name + Owner Avatar               |
++--------------------------------------------------+
+|                                                  |
+|  [Tab: Today] [Tab: Bookings] [Tab: Services]    |
+|  [Tab: Team]  [Tab: Settings]                    |
+|                                                  |
++--------------------------------------------------+
+|                                                  |
+|  === TODAY TAB ===                               |
+|  - Today's appointments with client + service   |
+|  - Assigned stylist per booking                  |
+|  - Confirm/Complete actions                      |
+|                                                  |
++--------------------------------------------------+
+|                                                  |
+|  === SERVICES TAB ===                            |
+|  - List of services with cards                   |
+|  - Add/Edit/Delete service                       |
+|  - Price, duration, deposit info                 |
+|                                                  |
++--------------------------------------------------+
+|                                                  |
+|  === TEAM TAB (Stylists) ===                     |
+|  - Stylist cards with avatar, name, bio          |
+|  - Assign services to each stylist               |
+|  - Add/Edit/Remove stylists                      |
+|                                                  |
++--------------------------------------------------+
+```
+
+---
+
+## New Salon Dashboard Components
+
+### 1. Services Management
+**`src/components/salon/ServiceManager.tsx`**
+- List all salon services
+- Add new service form
+- Edit/delete existing services
+- Fields: name, description, duration, price, deposit
+
+**`src/components/salon/ServiceFormSheet.tsx`**
+- Bottom sheet for adding/editing service
+- Form with validation
+
+### 2. Stylists Management
+**`src/components/salon/StylistManager.tsx`**
+- List all stylists with cards
+- Add/edit stylist info
+- Assign services to stylists
+
+**`src/components/salon/StylistCard.tsx`**
+- Display stylist avatar, name, bio
+- Services they can perform
+- Toggle active status
+
+**`src/components/salon/StylistFormSheet.tsx`**
+- Bottom sheet for adding/editing stylist
+- Service assignment checkboxes
+
+### 3. Booking Details Card
+**`src/components/salon/SalonBookingCard.tsx`**
+- Enhanced booking card showing:
+  - Client name + phone
+  - Service + duration
+  - Assigned stylist (with avatar)
+  - Time slot
+  - Status with actions (Confirm, Complete, Cancel)
+
+---
+
+## Automatic Stylist Allocation
+
+### Logic Flow
+When a client books a service:
+1. Find stylists who can perform the selected service (via `stylist_services`)
+2. Check each stylist's availability for the selected time slot
+3. Auto-assign the first available stylist
+4. If no stylist available, leave `stylist_id` null (owner handles manually)
+
+### Implementation
+**`src/hooks/useAutoAssignStylist.ts`**
+
+```typescript
+// Pseudocode
+async function autoAssignStylist(salonId, serviceId, date, startTime, endTime) {
+  // 1. Get stylists who can do this service
+  const eligibleStylists = await supabase
+    .from('stylist_services')
+    .select('stylist_id')
+    .eq('service_id', serviceId);
+
+  // 2. Check each stylist's bookings for conflicts
+  for (const stylist of eligibleStylists) {
+    const conflicts = await checkConflicts(stylist.id, date, startTime, endTime);
+    if (!conflicts) return stylist.id;
+  }
+  
+  return null; // No available stylist
+}
+```
+
+### Booking Flow Update
+Update `BookingSheet.tsx` and `SalonBooking.tsx`:
+1. Before inserting booking, call `autoAssignStylist()`
+2. Include `stylist_id` in the booking insert
+3. Show assigned stylist in confirmation
+
+---
+
+## Client Dashboard Updates
+
+### Show Stylist in Booking Cards
+Update `ClientBookingCard.tsx` to prominently display:
+- Stylist avatar with glow border
+- Stylist name
+- "Your stylist for this appointment"
+
+### Real-Time Stylist Updates
+When salon assigns/changes stylist, client sees update instantly (already supported via existing realtime subscription).
+
+---
+
+## Files to Create
+
+### Hooks
+1. `src/hooks/useUserRole.ts` - Role checking and routing
+2. `src/hooks/useSalonServices.ts` - Fetch/manage services with realtime
+3. `src/hooks/useSalonStylists.ts` - Fetch/manage stylists with realtime
+4. `src/hooks/useAutoAssignStylist.ts` - Automatic stylist allocation logic
+
+### Salon Dashboard Components
+1. `src/components/salon/ServiceManager.tsx` - Services list + management
+2. `src/components/salon/ServiceCard.tsx` - Individual service display
+3. `src/components/salon/ServiceFormSheet.tsx` - Add/edit service form
+4. `src/components/salon/StylistManager.tsx` - Stylists list + management
+5. `src/components/salon/StylistCard.tsx` - Individual stylist display
+6. `src/components/salon/StylistFormSheet.tsx` - Add/edit stylist form
+7. `src/components/salon/SalonBookingCard.tsx` - Enhanced booking card
+8. `src/components/salon/DashboardTabs.tsx` - Tab navigation
+
+### Auth Components
+1. `src/components/auth/RoleSelector.tsx` - Client/Salon selection UI
+
+---
+
+## Files to Modify
+
+### Auth & Routing
+- `src/pages/Auth.tsx` - Add role selection during signup, role-based redirect after login
+- `src/pages/Onboarding.tsx` - Ensure salon_owner role is assigned
+- `src/App.tsx` - Add protected route logic
+
+### Dashboards
+- `src/pages/Dashboard.tsx` - Complete overhaul with tabs (Today, Services, Team)
+- `src/pages/ClientPage.tsx` - Add role check, ensure only clients access
+
+### Booking Flow
+- `src/components/client/BookingSheet.tsx` - Add auto-assign stylist before booking
+- `src/components/client/ClientBookingCard.tsx` - Show assigned stylist
+
+---
+
+## Real-Time Sync Architecture
+
+```text
++------------------+                      +------------------+
+|  CLIENT BOOKS    |                      |  SALON SEES      |
+|  (selects service|  ----> Supabase ---> |  new booking     |
+|   + date/time)   |       Realtime       |  instantly       |
++------------------+                      +------------------+
+
++------------------+                      +------------------+
+|  CLIENT SEES     |  <---- Supabase <--- |  SALON CONFIRMS  |
+|  status update   |       Realtime       |  or assigns      |
+|  + stylist       |                      |  stylist         |
++------------------+                      +------------------+
+```
+
+Both dashboards subscribe to:
+- `bookings` table changes
+- `stylists` table changes (for availability)
+- `services` table changes (for menu updates)
 
 ---
 
 ## Implementation Order
 
-1. **Update CSS** - Add Barbie glow effects, animations, gradient utilities
-2. **Create Hooks** - `useClientBookings`, `useDiscoverSalons` with real-time
-3. **Build Components** - Calendar, BookingCard, SalonDiscovery, BookingSheet
-4. **Build Dashboard** - Assemble all components in ClientDashboard
-5. **Replace SalonBooking** - Swap content for client dashboard
-6. **Polish Animations** - Add shimmer, sparkles, transitions
+1. **Database Migration** - Add RLS policy for user_roles INSERT, enable realtime for stylists/services
+2. **useUserRole Hook** - Role fetching and checking
+3. **Auth Page Update** - Role selection + role-based redirect
+4. **Onboarding Fix** - Ensure proper role assignment
+5. **Salon Services Management** - CRUD for services
+6. **Salon Stylists Management** - CRUD for stylists + service assignment
+7. **Auto-Assign Stylist** - Hook for automatic allocation
+8. **Update Booking Flow** - Include stylist in booking
+9. **Enhanced Booking Cards** - Show stylist in both dashboards
+10. **Dashboard Tabs** - Organize salon dashboard sections
 
 ---
 
-## Technical Notes
+## Security Considerations
 
-- Uses existing `useAuth` hook for user context
-- Leverages `useAvailableSlots` for booking flow
-- Real-time via Supabase `channel.on('postgres_changes')`
-- All queries respect RLS policies (clients see own bookings only)
-- No database migrations required
-- Mobile-first responsive design
+1. **Role Assignment**: Only allow users to self-assign `client` role. `salon_owner` role assigned only after creating a salon (via trigger or secure function)
+2. **Protected Routes**: Check role before rendering dashboard content
+3. **RLS Policies**: Existing policies already protect data access correctly
+4. **Stylist Assignment**: Only salon owners can manually reassign stylists
+
+---
+
+## UI/UX Notes
+
+### Barbie Theme Consistency
+- Role selector cards with pink glow on selection
+- Service cards with gradient borders
+- Stylist cards with avatar glow rings
+- All forms use existing dark glass styling
+- Success animations with sparkles
+
+### Mobile-First
+- Bottom sheets for all forms
+- Touch-friendly targets (44px min)
+- Swipeable tabs on dashboard
+- Pull-to-refresh for bookings
 
