@@ -1,359 +1,329 @@
 
-# Two-Way Authentication & Real-Time Dashboard System
+# Enhanced Salon Dashboard with Calendar & Stylist Selection
 
 ## Overview
-Build a comprehensive two-way authentication system separating **Clients** from **Salon Owners**, with role-specific dashboards that sync in real-time. Include service card management for salons, stylists handling, and automatic slot allocation with stylist assignment.
+Build a comprehensive salon dashboard with a calendar view matching the client side, enable clients to choose their preferred stylist during booking, implement robust booking clash prevention, and allow salon owners to mark sessions as complete.
 
 ---
 
 ## Current State Analysis
 
-### What Already Exists
-- Basic auth (`signUp`, `signIn`, `signOut`) in `useAuth.tsx`
-- Single auth page (`/auth`) for both login and signup
-- `user_roles` table with `app_role` enum: `salon_owner`, `stylist`, `client`
-- Salon dashboard (`/dashboard`) - currently assumes everyone is a salon owner
-- Client dashboard (`/client`) - separate page but no role check
-- Real-time bookings subscription already working
-- `stylists` table exists with `salon_id` foreign key
-- `stylist_services` junction table for service assignments
-- `bookings` table has `stylist_id` column (nullable)
+### What Already Works
+- Salon dashboard shows today's bookings with confirm/complete/cancel actions
+- Real-time subscription for bookings exists (lines 122-144 in Dashboard.tsx)
+- Auto-assign stylist logic exists but clients cannot choose stylists manually
+- `useAvailableSlots` checks for time conflicts but not per-stylist
+- Client calendar shows week view with booking indicators
 
 ### What Needs to Be Built
-1. Role selection during signup
-2. Role-based routing after authentication
-3. Enhanced salon dashboard with stylists + services management
-4. Automatic stylist allocation on booking
-5. Real-time sync between client and salon dashboards
+1. **Salon Calendar View** - Same week-based calendar as client side for salon dashboard
+2. **Stylist Selection in Booking** - Let clients pick a preferred stylist
+3. **Per-Stylist Availability** - Update slot logic to check individual stylist schedules
+4. **Clash Prevention** - Block booking if stylist is already booked for that time
+5. **Visual Stylist Schedule** - Show client which stylists are booked and when
+6. **Mark Session Complete** - Already exists, needs enhanced UI feedback
 
 ---
 
-## Authentication Flow
+## Architecture Changes
 
-### Signup Flow
+### New Hook: useSalonBookings
+Fetch all bookings for a salon for a date range (not just today) with real-time updates.
+
 ```text
-+----------------+     +------------------+     +------------------+
-|  Auth Page     | --> |  Role Selection  | --> |  Onboarding     |
-|  (Email/Pass)  |     |  Client / Salon  |     |  (role-based)   |
-+----------------+     +------------------+     +------------------+
-                                                        |
-                          +-----------------------------+
-                          |                             |
-                          v                             v
-                   +-----------+               +----------------+
-                   |  Client   |               |  Salon Owner   |
-                   |  Dashboard|               |  Onboarding    |
-                   |  /client  |               |  /onboarding   |
-                   +-----------+               +----------------+
+Input: salonId, startDate, endDate
+Output: bookings[] with full details (client, service, stylist, time)
+Features: Real-time subscription, formatted for calendar display
 ```
 
-### Login Flow
+### Updated Hook: useAvailableSlots
+Add stylist-aware availability checking:
+- New parameter: `stylistId` (optional)
+- When stylist selected, only check that stylist's bookings for conflicts
+- When no stylist, check all bookings (salon-wide availability)
+
+### New Hook: useSalonStylistsWithAvailability
+Extend existing `useSalonStylists` to include:
+- Each stylist's bookings for a given date
+- Busy time ranges per stylist
+- Visual indicator of availability
+
+---
+
+## Salon Dashboard Calendar Component
+
+### SalonCalendar.tsx
+Similar to `ClientCalendar.tsx` but for salon view:
+- Week navigation (same as client)
+- Booking indicators per day (number of bookings)
+- Click date to see bookings for that day
+- Color coding: pending (amber), confirmed (green), completed (purple)
+
+### Enhanced Today Tab
 ```text
-+----------------+     +------------------+
-|  Auth Page     | --> |  Check Role      |
-|  (Email/Pass)  |     |  in user_roles   |
-+----------------+     +------------------+
-                              |
-            +-----------------+-----------------+
-            |                                   |
-            v                                   v
-     +-----------+                      +----------------+
-     |  Client   |                      |  Salon Owner   |
-     |  /client  |                      |  /dashboard    |
-     +-----------+                      +----------------+
++--------------------------------------------------+
+|  [Calendar Week View - Same as Client Side]       |
+|  Mon Tue Wed Thu Fri Sat Sun                     |
+|   5   6   7   8   9  10  11                      |
+|   ·   ·  ●●  ●  ·   ·   ●                        |
++--------------------------------------------------+
+|                                                  |
+|  === Selected Day: Thursday, Jan 29 ===          |
+|                                                  |
+|  [Booking Card] 09:00 - 10:00                    |
+|  - Jane Wanjiku | Gel Manicure                   |
+|  - Assigned: Sarah (avatar)                      |
+|  - Status: Confirmed                             |
+|  - [Mark Complete] [Cancel]                      |
+|                                                  |
+|  [Booking Card] 10:30 - 11:30                    |
+|  - Mary Kamau | Hair Braiding                    |
+|  - Assigned: Emma (avatar)                       |
+|  - Status: Pending                               |
+|  - [Confirm] [Cancel]                            |
+|                                                  |
++--------------------------------------------------+
 ```
 
 ---
 
-## Database Changes
+## Client-Side Stylist Selection
 
-### New Policy for user_roles INSERT
-Currently users cannot insert their own roles. We need to add this capability securely during signup:
-
-```sql
--- Allow users to assign themselves client role during signup
-CREATE POLICY "Users can assign themselves client role"
-    ON public.user_roles FOR INSERT
-    TO authenticated
-    WITH CHECK (
-        auth.uid() = user_id 
-        AND role = 'client'
-    );
+### Updated BookingSheet.tsx Flow
+```text
+Step 1: Select Service
+Step 2: [NEW] Select Stylist (Optional)
+        - Show all stylists who can do this service
+        - Show busy indicators per stylist
+        - "Any Available" option for auto-assign
+Step 3: Select Date & Time
+        - Slots now filtered by selected stylist's availability
+        - If "Any Available", show all open slots
+Step 4: Confirm Booking
 ```
 
-**Note**: Salon owner role is assigned in `Onboarding.tsx` after creating a salon - this already works via the current INSERT that bypasses RLS (needs fix).
-
-### Enable Realtime for More Tables
-```sql
--- Enable realtime for stylists changes
-ALTER PUBLICATION supabase_realtime ADD TABLE public.stylists;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.services;
+### StylistPicker Component
+```text
++--------------------------------------------------+
+|  Choose Your Stylist                             |
++--------------------------------------------------+
+|                                                  |
+|  [●] Any Available Stylist                       |
+|      We'll assign the first available            |
+|                                                  |
+|  [○] Sarah Mwangi                                |
+|      Specialist in: Nails, Gel, Pedicure         |
+|      Next available: 2:00 PM today               |
+|                                                  |
+|  [○] Emma Ochieng                                |
+|      Specialist in: Hair, Braiding               |
+|      Booked until: 4:00 PM                       |
+|                                                  |
++--------------------------------------------------+
 ```
 
 ---
 
-## New Hook: useUserRole
+## Per-Stylist Availability Logic
 
-Create `src/hooks/useUserRole.ts`:
-- Fetches user's role(s) from `user_roles` table
-- Returns `{ role, loading, hasRole(role) }`
-- Used for conditional routing and UI display
-
+### Modified useAvailableSlots Hook
 ```typescript
-// Example usage
-const { role, loading, hasRole } = useUserRole();
-if (hasRole('salon_owner')) navigate('/dashboard');
-else navigate('/client');
-```
-
----
-
-## Updated Auth Flow
-
-### Auth Page Modifications
-1. Add role selection tabs/buttons on **signup** only
-2. After signup, automatically assign selected role
-3. After login, check existing role and redirect accordingly
-
-### New Components
-
-**RoleSelector.tsx**
-- Beautiful toggle between "I'm a Client" and "I Own a Salon"
-- Barbie-styled cards with icons
-- Pink glow on selected option
-
----
-
-## Salon Dashboard Enhancements
-
-### Current Dashboard (`/dashboard`)
-Shows: Today's bookings, quick stats, booking link
-
-### Enhanced Dashboard Structure
-```text
-+--------------------------------------------------+
-|  Header: Salon Name + Owner Avatar               |
-+--------------------------------------------------+
-|                                                  |
-|  [Tab: Today] [Tab: Bookings] [Tab: Services]    |
-|  [Tab: Team]  [Tab: Settings]                    |
-|                                                  |
-+--------------------------------------------------+
-|                                                  |
-|  === TODAY TAB ===                               |
-|  - Today's appointments with client + service   |
-|  - Assigned stylist per booking                  |
-|  - Confirm/Complete actions                      |
-|                                                  |
-+--------------------------------------------------+
-|                                                  |
-|  === SERVICES TAB ===                            |
-|  - List of services with cards                   |
-|  - Add/Edit/Delete service                       |
-|  - Price, duration, deposit info                 |
-|                                                  |
-+--------------------------------------------------+
-|                                                  |
-|  === TEAM TAB (Stylists) ===                     |
-|  - Stylist cards with avatar, name, bio          |
-|  - Assign services to each stylist               |
-|  - Add/Edit/Remove stylists                      |
-|                                                  |
-+--------------------------------------------------+
-```
-
----
-
-## New Salon Dashboard Components
-
-### 1. Services Management
-**`src/components/salon/ServiceManager.tsx`**
-- List all salon services
-- Add new service form
-- Edit/delete existing services
-- Fields: name, description, duration, price, deposit
-
-**`src/components/salon/ServiceFormSheet.tsx`**
-- Bottom sheet for adding/editing service
-- Form with validation
-
-### 2. Stylists Management
-**`src/components/salon/StylistManager.tsx`**
-- List all stylists with cards
-- Add/edit stylist info
-- Assign services to stylists
-
-**`src/components/salon/StylistCard.tsx`**
-- Display stylist avatar, name, bio
-- Services they can perform
-- Toggle active status
-
-**`src/components/salon/StylistFormSheet.tsx`**
-- Bottom sheet for adding/editing stylist
-- Service assignment checkboxes
-
-### 3. Booking Details Card
-**`src/components/salon/SalonBookingCard.tsx`**
-- Enhanced booking card showing:
-  - Client name + phone
-  - Service + duration
-  - Assigned stylist (with avatar)
-  - Time slot
-  - Status with actions (Confirm, Complete, Cancel)
-
----
-
-## Automatic Stylist Allocation
-
-### Logic Flow
-When a client books a service:
-1. Find stylists who can perform the selected service (via `stylist_services`)
-2. Check each stylist's availability for the selected time slot
-3. Auto-assign the first available stylist
-4. If no stylist available, leave `stylist_id` null (owner handles manually)
-
-### Implementation
-**`src/hooks/useAutoAssignStylist.ts`**
-
-```typescript
-// Pseudocode
-async function autoAssignStylist(salonId, serviceId, date, startTime, endTime) {
-  // 1. Get stylists who can do this service
-  const eligibleStylists = await supabase
-    .from('stylist_services')
-    .select('stylist_id')
-    .eq('service_id', serviceId);
-
-  // 2. Check each stylist's bookings for conflicts
-  for (const stylist of eligibleStylists) {
-    const conflicts = await checkConflicts(stylist.id, date, startTime, endTime);
-    if (!conflicts) return stylist.id;
-  }
-  
-  return null; // No available stylist
+interface UseAvailableSlotsProps {
+  salonId: string;
+  date: Date | undefined;
+  serviceDuration: number;
+  stylistId?: string | null;  // NEW: Optional stylist filter
 }
+
+// Logic:
+// 1. Fetch working hours (salon-wide)
+// 2. Fetch bookings for date
+//    - If stylistId provided: filter by stylist_id
+//    - If not: check ALL bookings for time conflicts
+// 3. Generate slots, marking unavailable where conflicts exist
 ```
 
-### Booking Flow Update
-Update `BookingSheet.tsx` and `SalonBooking.tsx`:
-1. Before inserting booking, call `autoAssignStylist()`
-2. Include `stylist_id` in the booking insert
-3. Show assigned stylist in confirmation
+### Real-Time Clash Prevention
+When client selects a time slot:
+1. Re-check availability immediately before booking insert
+2. If slot taken (race condition), show error and refresh slots
+3. Use Supabase RLS + unique constraint or application-level check
 
 ---
 
-## Client Dashboard Updates
+## Updated Booking Flow with Stylist Choice
 
-### Show Stylist in Booking Cards
-Update `ClientBookingCard.tsx` to prominently display:
-- Stylist avatar with glow border
-- Stylist name
-- "Your stylist for this appointment"
+### Client Perspective
+1. Select service
+2. See stylists who can perform that service
+3. Pick specific stylist OR "Any Available"
+4. Calendar shows availability based on stylist choice
+5. If specific stylist picked, only their free slots shown
+6. If "Any Available", all slots where at least one stylist is free
+7. On confirm: Either save chosen stylist or auto-assign
 
-### Real-Time Stylist Updates
-When salon assigns/changes stylist, client sees update instantly (already supported via existing realtime subscription).
+### Salon Perspective (Real-Time Sync)
+- New booking appears instantly in calendar
+- Stylist assignment visible immediately
+- Can reassign stylist if needed (future enhancement)
 
 ---
 
 ## Files to Create
 
-### Hooks
-1. `src/hooks/useUserRole.ts` - Role checking and routing
-2. `src/hooks/useSalonServices.ts` - Fetch/manage services with realtime
-3. `src/hooks/useSalonStylists.ts` - Fetch/manage stylists with realtime
-4. `src/hooks/useAutoAssignStylist.ts` - Automatic stylist allocation logic
+### New Components
+1. `src/components/salon/SalonCalendar.tsx` - Week calendar for salon dashboard
+2. `src/components/booking/StylistPicker.tsx` - Stylist selection during booking
+3. `src/components/salon/DayBookingsList.tsx` - List bookings for a selected day
 
-### Salon Dashboard Components
-1. `src/components/salon/ServiceManager.tsx` - Services list + management
-2. `src/components/salon/ServiceCard.tsx` - Individual service display
-3. `src/components/salon/ServiceFormSheet.tsx` - Add/edit service form
-4. `src/components/salon/StylistManager.tsx` - Stylists list + management
-5. `src/components/salon/StylistCard.tsx` - Individual stylist display
-6. `src/components/salon/StylistFormSheet.tsx` - Add/edit stylist form
-7. `src/components/salon/SalonBookingCard.tsx` - Enhanced booking card
-8. `src/components/salon/DashboardTabs.tsx` - Tab navigation
-
-### Auth Components
-1. `src/components/auth/RoleSelector.tsx` - Client/Salon selection UI
+### New/Updated Hooks
+1. `src/hooks/useSalonBookings.ts` - Fetch bookings for date range with realtime
+2. Update `src/hooks/useAvailableSlots.ts` - Add stylistId parameter
 
 ---
 
 ## Files to Modify
 
-### Auth & Routing
-- `src/pages/Auth.tsx` - Add role selection during signup, role-based redirect after login
-- `src/pages/Onboarding.tsx` - Ensure salon_owner role is assigned
-- `src/App.tsx` - Add protected route logic
-
-### Dashboards
-- `src/pages/Dashboard.tsx` - Complete overhaul with tabs (Today, Services, Team)
-- `src/pages/ClientPage.tsx` - Add role check, ensure only clients access
+### Dashboard
+- `src/pages/Dashboard.tsx` - Add calendar view, date-based filtering
 
 ### Booking Flow
-- `src/components/client/BookingSheet.tsx` - Add auto-assign stylist before booking
-- `src/components/client/ClientBookingCard.tsx` - Show assigned stylist
+- `src/components/client/BookingSheet.tsx` - Add stylist selection step
+- `src/pages/SalonBooking.tsx` - Add stylist selection for non-logged-in users
+
+### Hooks
+- `src/hooks/useAvailableSlots.ts` - Per-stylist filtering
+
+---
+
+## Implementation Details
+
+### useSalonBookings Hook
+```typescript
+interface SalonBookingWithDetails {
+  id: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+  status: BookingStatus;
+  client_name: string;
+  client_phone: string;
+  service_name: string;
+  stylist_id: string | null;
+  stylist_name: string | null;
+  stylist_avatar: string | null;
+  total_amount: number;
+}
+
+function useSalonBookings(salonId: string, startDate: string, endDate: string) {
+  // Fetch bookings in date range
+  // Real-time subscription
+  // Group by date for calendar display
+  return { bookings, bookingsByDate, loading };
+}
+```
+
+### SalonCalendar Component
+- Reuse structure from ClientCalendar.tsx
+- Show booking count badges per day
+- Click to filter bookings list below
+- Sync with today's bookings state
+
+### StylistPicker Component
+- Fetch stylists for selected service via stylist_services join
+- Show each stylist's current bookings for selected date
+- Calculate "next available" time for display
+- Radio selection: "Any" vs specific stylist
+
+### Updated Availability Check
+```typescript
+// In useAvailableSlots
+const fetchSlots = async () => {
+  // ... existing working hours fetch ...
+  
+  // Modified bookings query
+  let bookingsQuery = supabase
+    .from("bookings")
+    .select("start_time, end_time, stylist_id")
+    .eq("salon_id", salonId)
+    .eq("booking_date", dateStr)
+    .neq("status", "cancelled");
+  
+  // Filter by stylist if specified
+  if (stylistId) {
+    bookingsQuery = bookingsQuery.eq("stylist_id", stylistId);
+  }
+  
+  const { data: existingBookings } = await bookingsQuery;
+  
+  // ... rest of slot generation logic ...
+};
+```
 
 ---
 
 ## Real-Time Sync Architecture
 
 ```text
-+------------------+                      +------------------+
-|  CLIENT BOOKS    |                      |  SALON SEES      |
-|  (selects service|  ----> Supabase ---> |  new booking     |
-|   + date/time)   |       Realtime       |  instantly       |
-+------------------+                      +------------------+
-
-+------------------+                      +------------------+
-|  CLIENT SEES     |  <---- Supabase <--- |  SALON CONFIRMS  |
-|  status update   |       Realtime       |  or assigns      |
-|  + stylist       |                      |  stylist         |
-+------------------+                      +------------------+
+CLIENT DASHBOARD                    SALON DASHBOARD
+      |                                    |
+      |  Client books with stylist         |
+      +-----------> Supabase <-------------+
+                   Realtime                
+      |                                    |
+      |  Bookings subscription             |
+      +<-------------------------------+   |
+      |                                |   |
+   Calendar updates                 Calendar updates
+   Shows "Booked"                   Shows new booking
+      |                                    |
+      |                                    |
+      +<------- Salon confirms booking ----+
+      |                                    |
+   Status badge                    Button changes to
+   changes to                      "Mark Complete"
+   "Confirmed"                            |
 ```
-
-Both dashboards subscribe to:
-- `bookings` table changes
-- `stylists` table changes (for availability)
-- `services` table changes (for menu updates)
 
 ---
 
 ## Implementation Order
 
-1. **Database Migration** - Add RLS policy for user_roles INSERT, enable realtime for stylists/services
-2. **useUserRole Hook** - Role fetching and checking
-3. **Auth Page Update** - Role selection + role-based redirect
-4. **Onboarding Fix** - Ensure proper role assignment
-5. **Salon Services Management** - CRUD for services
-6. **Salon Stylists Management** - CRUD for stylists + service assignment
-7. **Auto-Assign Stylist** - Hook for automatic allocation
-8. **Update Booking Flow** - Include stylist in booking
-9. **Enhanced Booking Cards** - Show stylist in both dashboards
-10. **Dashboard Tabs** - Organize salon dashboard sections
+1. **Create useSalonBookings hook** - Date range fetching with realtime
+2. **Create SalonCalendar component** - Week view for salon dashboard
+3. **Update Dashboard.tsx** - Integrate calendar, date-based filtering
+4. **Create StylistPicker component** - Stylist selection UI
+5. **Update useAvailableSlots** - Add stylistId parameter
+6. **Update BookingSheet.tsx** - Add stylist selection step
+7. **Update SalonBooking.tsx** - Add stylist selection for public booking
 
 ---
 
-## Security Considerations
+## Edge Cases Handled
 
-1. **Role Assignment**: Only allow users to self-assign `client` role. `salon_owner` role assigned only after creating a salon (via trigger or secure function)
-2. **Protected Routes**: Check role before rendering dashboard content
-3. **RLS Policies**: Existing policies already protect data access correctly
-4. **Stylist Assignment**: Only salon owners can manually reassign stylists
+1. **No stylists assigned to service** - Show "Any Available" only, auto-assign on booking
+2. **All stylists booked** - Show "No available slots" message
+3. **Race condition** - Two clients booking same slot simultaneously
+   - Handle with error message and slot refresh
+4. **Stylist marked inactive** - Don't show in picker, don't affect existing bookings
+5. **Service duration longer than remaining time** - Slot not shown
 
 ---
 
-## UI/UX Notes
+## UI/UX Enhancements
+
+### Visual Clash Indicators
+- Gray out slots where selected stylist is booked
+- Show "Booked by [Client Name]" tooltip on hover (salon view only)
+- Animated transition when slots update in real-time
+
+### Mark Complete Flow
+- Add satisfaction animation (sparkles/checkmark)
+- Show completion time timestamp
+- Update stylist's "available from" time
 
 ### Barbie Theme Consistency
-- Role selector cards with pink glow on selection
-- Service cards with gradient borders
-- Stylist cards with avatar glow rings
-- All forms use existing dark glass styling
-- Success animations with sparkles
-
-### Mobile-First
-- Bottom sheets for all forms
-- Touch-friendly targets (44px min)
-- Swipeable tabs on dashboard
-- Pull-to-refresh for bookings
-
+- Stylist cards with gradient borders
+- Selected stylist has glow effect
+- Calendar matches client-side styling
+- All components use existing card-glass, shimmer-glass classes
