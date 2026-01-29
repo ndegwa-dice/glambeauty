@@ -11,9 +11,10 @@ interface UseAvailableSlotsProps {
   salonId: string;
   date: Date | undefined;
   serviceDuration: number;
+  stylistId?: string | null; // Optional: filter by specific stylist
 }
 
-export function useAvailableSlots({ salonId, date, serviceDuration }: UseAvailableSlotsProps) {
+export function useAvailableSlots({ salonId, date, serviceDuration, stylistId }: UseAvailableSlotsProps) {
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -44,12 +45,20 @@ export function useAvailableSlots({ salonId, date, serviceDuration }: UseAvailab
       }
 
       // Fetch existing bookings for this date
-      const { data: existingBookings } = await supabase
+      // If stylistId is provided, filter by that stylist only
+      let bookingsQuery = supabase
         .from("bookings")
-        .select("start_time, end_time")
+        .select("start_time, end_time, stylist_id")
         .eq("salon_id", salonId)
         .eq("booking_date", dateStr)
         .neq("status", "cancelled");
+
+      // Filter by specific stylist if provided
+      if (stylistId) {
+        bookingsQuery = bookingsQuery.eq("stylist_id", stylistId);
+      }
+
+      const { data: existingBookings } = await bookingsQuery;
 
       // Generate time slots
       const generatedSlots: TimeSlot[] = [];
@@ -112,7 +121,7 @@ export function useAvailableSlots({ salonId, date, serviceDuration }: UseAvailab
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [salonId, date, serviceDuration]);
+  }, [salonId, date, serviceDuration, stylistId]);
 
   return { slots, loading };
 }

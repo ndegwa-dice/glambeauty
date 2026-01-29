@@ -9,8 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { ServiceCard } from "@/components/booking/ServiceCard";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
+import { StylistPicker } from "@/components/booking/StylistPicker";
 import { BookingSummary } from "@/components/booking/BookingSummary";
 import { useAvailableSlots } from "@/hooks/useAvailableSlots";
+import { useAutoAssignStylist } from "@/hooks/useAutoAssignStylist";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowLeft, 
@@ -19,7 +21,9 @@ import {
   Phone, 
   Calendar,
   Check,
-  Sparkles
+  Sparkles,
+  Users,
+  User
 } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -28,12 +32,13 @@ import type { Tables } from "@/integrations/supabase/types";
 type Salon = Tables<"salons">;
 type Service = Tables<"services">;
 
-type BookingStep = "services" | "datetime" | "details" | "confirmation";
+type BookingStep = "services" | "stylist" | "datetime" | "details" | "confirmation";
 
 export default function SalonBooking() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { assignStylist } = useAutoAssignStylist();
   
   // Data states
   const [salon, setSalon] = useState<Salon | null>(null);
@@ -44,16 +49,19 @@ export default function SalonBooking() {
   // Booking flow states
   const [step, setStep] = useState<BookingStep>("services");
   const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedStylistId, setSelectedStylistId] = useState<string | null>(null);
+  const [selectedStylistName, setSelectedStylistName] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
 
-  // Real-time available slots
+  // Real-time available slots with stylist filtering
   const { slots, loading: slotsLoading } = useAvailableSlots({
     salonId: salon?.id || "",
     date: selectedDate,
     serviceDuration: selectedService?.duration_minutes || 30,
+    stylistId: selectedStylistId,
   });
 
   // Fetch salon and services
@@ -92,10 +100,38 @@ export default function SalonBooking() {
     fetchSalonData();
   }, [slug]);
 
+  // Fetch stylist name when selected
+  useEffect(() => {
+    if (!selectedStylistId) {
+      setSelectedStylistName(null);
+      return;
+    }
+
+    const fetchStylistName = async () => {
+      const { data } = await supabase
+        .from("stylists")
+        .select("name")
+        .eq("id", selectedStylistId)
+        .single();
+      
+      if (data) {
+        setSelectedStylistName(data.name);
+      }
+    };
+
+    fetchStylistName();
+  }, [selectedStylistId]);
+
   const handleServiceSelect = (service: Service) => {
     setSelectedService(service);
+    setSelectedStylistId(null);
+    setSelectedStylistName(null);
     setSelectedDate(undefined);
     setSelectedTime(null);
+    setStep("stylist");
+  };
+
+  const handleStylistContinue = () => {
     setStep("datetime");
   };
 
@@ -127,6 +163,25 @@ export default function SalonBooking() {
     const endMins = endMinutes % 60;
     const endTime = `${String(endHours).padStart(2, "0")}:${String(endMins).padStart(2, "0")}`;
 
+    let finalStylistId = selectedStylistId;
+    let finalStylistName = selectedStylistName;
+
+    // If "Any Available" was selected, auto-assign
+    if (!selectedStylistId) {
+      const result = await assignStylist({
+        salonId: salon.id,
+        serviceId: selectedService.id,
+        date: format(selectedDate, "yyyy-MM-dd"),
+        startTime: selectedTime,
+        endTime,
+      });
+
+      if (result.stylistId && result.stylistName) {
+        finalStylistId = result.stylistId;
+        finalStylistName = result.stylistName;
+      }
+    }
+
     const { error } = await supabase.from("bookings").insert({
       salon_id: salon.id,
       service_id: selectedService.id,
@@ -137,6 +192,7 @@ export default function SalonBooking() {
       end_time: endTime,
       total_amount: selectedService.price,
       deposit_amount: selectedService.deposit_amount,
+      stylist_id: finalStylistId || null,
     });
 
     setSubmitting(false);
@@ -232,6 +288,48 @@ export default function SalonBooking() {
           </div>
         );
 
+      case "stylist":
+        return (
+          <div className="animate-fade-up space-y-6">
+            <div className="space-y-1">
+              <h2 className="font-display text-xl font-bold text-foreground flex items-center gap-2">
+                <Users className="w-5 h-5 text-primary" />
+                Choose Your Stylist
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                {selectedService?.name} • {selectedService?.duration_minutes} min
+              </p>
+            </div>
+
+            <StylistPicker
+              salonId={salon.id}
+              serviceId={selectedService?.id || ""}
+              date={selectedDate}
+              selectedStylistId={selectedStylistId}
+              onSelectStylist={setSelectedStylistId}
+            />
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setStep("services")}
+                className="flex-1 h-14 touch-target"
+              >
+                <ArrowLeft className="mr-2 w-5 h-5" />
+                Back
+              </Button>
+              <Button
+                onClick={handleStylistContinue}
+                className="flex-1 h-14 touch-target"
+              >
+                Continue
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            </div>
+          </div>
+        );
+
       case "datetime":
         return (
           <div className="animate-fade-up space-y-6">
@@ -241,6 +339,7 @@ export default function SalonBooking() {
               </h2>
               <p className="text-muted-foreground text-sm">
                 {selectedService?.name} • {selectedService?.duration_minutes} min
+                {selectedStylistName && ` • ${selectedStylistName}`}
               </p>
             </div>
 
@@ -263,6 +362,11 @@ export default function SalonBooking() {
                 <h3 className="font-display font-semibold text-foreground flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-primary" />
                   {format(selectedDate, "EEEE, MMMM d")}
+                  {selectedStylistName && (
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({selectedStylistName}'s slots)
+                    </span>
+                  )}
                 </h3>
                 <TimeSlotPicker
                   slots={slots}
@@ -277,7 +381,7 @@ export default function SalonBooking() {
             <div className="flex gap-3 pt-4">
               <Button
                 variant="outline"
-                onClick={() => setStep("services")}
+                onClick={() => setStep("stylist")}
                 className="flex-1 h-14 touch-target"
               >
                 <ArrowLeft className="mr-2 w-5 h-5" />
@@ -309,11 +413,36 @@ export default function SalonBooking() {
 
             {/* Booking Summary */}
             {selectedService && selectedDate && selectedTime && (
-              <BookingSummary
-                service={selectedService}
-                date={selectedDate}
-                time={selectedTime}
-              />
+              <Card className="card-glass">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Service</span>
+                    <span className="font-medium text-foreground">{selectedService.name}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Date</span>
+                    <span className="font-medium text-foreground">
+                      {format(selectedDate, "EEE, MMM d")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Time</span>
+                    <span className="font-medium text-foreground">{selectedTime}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Stylist</span>
+                    <span className="font-medium text-gradient">
+                      {selectedStylistName || "Any Available"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm pt-2 border-t border-border/50">
+                    <span className="text-muted-foreground">Total</span>
+                    <span className="font-bold text-gradient">
+                      KES {selectedService.price.toLocaleString()}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Client Details Form */}
@@ -401,6 +530,12 @@ export default function SalonBooking() {
                     <span className="text-muted-foreground">Time</span>
                     <span className="font-medium text-foreground">{selectedTime}</span>
                   </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Stylist</span>
+                    <span className="font-medium text-gradient">
+                      {selectedStylistName || "Will be assigned"}
+                    </span>
+                  </div>
                   <div className="flex justify-between text-sm pt-2 border-t border-border/50">
                     <span className="text-muted-foreground">Total</span>
                     <span className="font-bold text-gradient">
@@ -415,6 +550,8 @@ export default function SalonBooking() {
               onClick={() => {
                 setStep("services");
                 setSelectedService(null);
+                setSelectedStylistId(null);
+                setSelectedStylistName(null);
                 setSelectedDate(undefined);
                 setSelectedTime(null);
                 setClientName("");
@@ -441,7 +578,8 @@ export default function SalonBooking() {
                 variant="ghost"
                 size="icon"
                 onClick={() => {
-                  if (step === "datetime") setStep("services");
+                  if (step === "stylist") setStep("services");
+                  else if (step === "datetime") setStep("stylist");
                   else if (step === "details") setStep("datetime");
                 }}
                 className="touch-target"
