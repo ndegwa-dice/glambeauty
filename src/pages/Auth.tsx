@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,7 +42,7 @@ export default function Auth() {
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
 
-    const { error } = await signIn(email, password);
+    const { error, data } = await signIn(email, password);
     
     if (error) {
       toast({
@@ -50,12 +51,29 @@ export default function Auth() {
         description: error.message,
       });
       setIsLoading(false);
-    } else {
+      return;
+    }
+
+    // Immediately fetch role and navigate - don't wait for state cascades
+    if (data?.user) {
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", data.user.id)
+        .limit(1);
+
+      const role = roleData?.[0]?.role;
+      
       toast({
         title: "Welcome back!",
         description: "You have signed in successfully.",
       });
-      // Navigation handled by useEffect
+
+      if (role === "salon_owner") {
+        navigate("/dashboard");
+      } else {
+        navigate("/client");
+      }
     }
   };
 
