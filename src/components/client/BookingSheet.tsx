@@ -16,6 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
+import { StylistPicker } from "@/components/booking/StylistPicker";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   ArrowLeft, 
@@ -24,7 +25,8 @@ import {
   MapPin, 
   Sparkles,
   Calendar as CalendarIcon,
-  User
+  User,
+  Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { DiscoverSalon } from "@/hooks/useDiscoverSalons";
@@ -32,7 +34,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Service = Tables<"services">;
 
-type BookingStep = "services" | "datetime" | "confirm";
+type BookingStep = "services" | "stylist" | "datetime" | "confirm";
 
 interface BookingSheetProps {
   salon: DiscoverSalon | null;
@@ -50,15 +52,18 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   const [services, setServices] = useState<Service[]>([]);
   const [loadingServices, setLoadingServices] = useState(false);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedStylistId, setSelectedStylistId] = useState<string | null>(null);
+  const [selectedStylistName, setSelectedStylistName] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [assignedStylist, setAssignedStylist] = useState<{ id: string; name: string } | null>(null);
 
+  // Pass stylistId to useAvailableSlots for per-stylist filtering
   const { slots, loading: slotsLoading } = useAvailableSlots({
     salonId: salon?.id || "",
     date: selectedDate,
     serviceDuration: selectedService?.duration_minutes || 30,
+    stylistId: selectedStylistId, // Filter by selected stylist
   });
 
   // Fetch services when salon changes
@@ -87,48 +92,42 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       setTimeout(() => {
         setStep("services");
         setSelectedService(null);
+        setSelectedStylistId(null);
+        setSelectedStylistName(null);
         setSelectedDate(undefined);
         setSelectedTime(null);
-        setAssignedStylist(null);
       }, 300);
     }
   }, [open]);
 
-  // Auto-assign stylist when date and time are selected
+  // When stylist changes, fetch their name
   useEffect(() => {
-    if (!salon || !selectedService || !selectedDate || !selectedTime) {
-      setAssignedStylist(null);
+    if (!selectedStylistId) {
+      setSelectedStylistName(null);
       return;
     }
 
-    const findStylist = async () => {
-      const [hours, minutes] = selectedTime.split(":").map(Number);
-      const startMinutes = hours * 60 + minutes;
-      const endMinutes = startMinutes + selectedService.duration_minutes;
-      const endHours = Math.floor(endMinutes / 60);
-      const endMins = endMinutes % 60;
-      const endTime = `${String(endHours).padStart(2, "0")}:${String(endMins).padStart(2, "0")}`;
-
-      const result = await assignStylist({
-        salonId: salon.id,
-        serviceId: selectedService.id,
-        date: format(selectedDate, "yyyy-MM-dd"),
-        startTime: selectedTime,
-        endTime,
-      });
-
-      if (result.stylistId && result.stylistName) {
-        setAssignedStylist({ id: result.stylistId, name: result.stylistName });
-      } else {
-        setAssignedStylist(null);
+    const fetchStylistName = async () => {
+      const { data } = await supabase
+        .from("stylists")
+        .select("name")
+        .eq("id", selectedStylistId)
+        .single();
+      
+      if (data) {
+        setSelectedStylistName(data.name);
       }
     };
 
-    findStylist();
-  }, [salon, selectedService, selectedDate, selectedTime, assignStylist]);
+    fetchStylistName();
+  }, [selectedStylistId]);
 
   const handleServiceSelect = (service: Service) => {
     setSelectedService(service);
+    setStep("stylist");
+  };
+
+  const handleStylistContinue = () => {
     setStep("datetime");
   };
 
@@ -145,6 +144,25 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     const endMins = endMinutes % 60;
     const endTime = `${String(endHours).padStart(2, "0")}:${String(endMins).padStart(2, "0")}`;
 
+    let finalStylistId = selectedStylistId;
+    let finalStylistName = selectedStylistName;
+
+    // If "Any Available" was selected, auto-assign
+    if (!selectedStylistId) {
+      const result = await assignStylist({
+        salonId: salon.id,
+        serviceId: selectedService.id,
+        date: format(selectedDate, "yyyy-MM-dd"),
+        startTime: selectedTime,
+        endTime,
+      });
+
+      if (result.stylistId && result.stylistName) {
+        finalStylistId = result.stylistId;
+        finalStylistName = result.stylistName;
+      }
+    }
+
     const { error } = await supabase.from("bookings").insert({
       salon_id: salon.id,
       service_id: selectedService.id,
@@ -156,7 +174,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       end_time: endTime,
       total_amount: selectedService.price,
       deposit_amount: selectedService.deposit_amount,
-      stylist_id: assignedStylist?.id || null,
+      stylist_id: finalStylistId || null,
     });
 
     setSubmitting(false);
@@ -172,7 +190,9 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
     toast({
       title: "Booking confirmed! 💅",
-      description: "Your appointment has been scheduled.",
+      description: finalStylistName 
+        ? `${finalStylistName} will be your stylist.`
+        : "Your appointment has been scheduled.",
     });
 
     onOpenChange(false);
@@ -235,7 +255,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
           </div>
         );
 
-      case "datetime":
+      case "stylist":
         return (
           <div className="space-y-4 animate-fade-up">
             {/* Selected Service */}
@@ -246,6 +266,54 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               <span className="text-sm text-muted-foreground">
                 {selectedService?.duration_minutes} min
               </span>
+            </div>
+
+            <h4 className="font-display font-semibold text-foreground flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" />
+              Choose Your Stylist
+            </h4>
+
+            <StylistPicker
+              salonId={salon?.id || ""}
+              serviceId={selectedService?.id || ""}
+              date={selectedDate}
+              selectedStylistId={selectedStylistId}
+              onSelectStylist={setSelectedStylistId}
+            />
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setStep("services")}
+                className="flex-1 h-12"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+              <Button
+                onClick={handleStylistContinue}
+                className="flex-1 h-12 btn-premium"
+              >
+                Continue
+              </Button>
+            </div>
+          </div>
+        );
+
+      case "datetime":
+        return (
+          <div className="space-y-4 animate-fade-up">
+            {/* Selected Service & Stylist */}
+            <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-xl">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <span className="font-medium">{selectedService?.name}</span>
+              {selectedStylistName && (
+                <>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-sm text-primary">{selectedStylistName}</span>
+                </>
+              )}
             </div>
 
             {/* Calendar */}
@@ -267,6 +335,11 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                 <h4 className="font-display font-semibold text-foreground flex items-center gap-2">
                   <CalendarIcon className="w-4 h-4 text-primary" />
                   {format(selectedDate, "EEEE, MMMM d")}
+                  {selectedStylistName && (
+                    <span className="text-xs text-muted-foreground font-normal">
+                      (showing {selectedStylistName}'s availability)
+                    </span>
+                  )}
                 </h4>
                 <TimeSlotPicker
                   slots={slots}
@@ -281,7 +354,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
             <div className="flex gap-3 pt-2">
               <Button
                 variant="outline"
-                onClick={() => setStep("services")}
+                onClick={() => setStep("stylist")}
                 className="flex-1 h-12"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -342,17 +415,15 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                     </span>
                     <span className="text-foreground">{selectedTime}</span>
                   </div>
-                  {assignedStylist && (
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground flex items-center gap-2">
-                        <User className="w-3.5 h-3.5" />
-                        Stylist
-                      </span>
-                      <span className="text-foreground font-medium text-gradient">
-                        {assignedStylist.name}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground flex items-center gap-2">
+                      <User className="w-3.5 h-3.5" />
+                      Stylist
+                    </span>
+                    <span className="text-foreground font-medium text-gradient">
+                      {selectedStylistName || "Any Available"}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex justify-between pt-3 border-t border-border/30">
@@ -364,22 +435,28 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               </CardContent>
             </Card>
 
-            {/* Stylist Assignment Notice */}
-            {assignedStylist && (
-              <div className="flex items-center gap-3 p-3 bg-primary/10 border border-primary/30 rounded-xl">
-                <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center glow-barbie">
+            {/* Stylist Info */}
+            <div className="flex items-center gap-3 p-3 bg-primary/10 border border-primary/30 rounded-xl">
+              <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center glow-barbie">
+                {selectedStylistId ? (
                   <User className="w-5 h-5 text-primary-foreground" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-foreground">
-                    {assignedStylist.name} will be your stylist
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Automatically assigned based on availability
-                  </p>
-                </div>
+                ) : (
+                  <Users className="w-5 h-5 text-primary-foreground" />
+                )}
               </div>
-            )}
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">
+                  {selectedStylistName 
+                    ? `${selectedStylistName} will be your stylist`
+                    : "We'll assign the best available stylist"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {selectedStylistId 
+                    ? "Your preferred stylist"
+                    : "Automatically assigned based on availability"}
+                </p>
+              </div>
+            </div>
 
             {/* Actions */}
             <div className="flex gap-3">

@@ -1,24 +1,25 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { startOfWeek } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useSalonBookings } from "@/hooks/useSalonBookings";
 import { supabase } from "@/integrations/supabase/client";
 import { MobileLayout, PageHeader } from "@/components/layout/MobileLayout";
 import { LoadingScreen } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { DashboardTabs, type DashboardTab } from "@/components/salon/DashboardTabs";
+import { SalonCalendar } from "@/components/salon/SalonCalendar";
+import { DayBookingsList } from "@/components/salon/DayBookingsList";
 import { ServiceManager } from "@/components/salon/ServiceManager";
 import { StylistManager } from "@/components/salon/StylistManager";
-import { SalonBookingCard, type SalonBooking } from "@/components/salon/SalonBookingCard";
 import { 
   Calendar, 
   Users, 
   DollarSign, 
   Plus, 
-  Settings, 
   LogOut,
-  Clock,
   Sparkles,
   Link as LinkIcon
 } from "lucide-react";
@@ -33,14 +34,23 @@ interface Salon {
 }
 
 export default function Dashboard() {
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const { hasRole, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [salon, setSalon] = useState<Salon | null>(null);
-  const [todayBookings, setTodayBookings] = useState<SalonBooking[]>([]);
   const [loadingData, setLoadingData] = useState(true);
   const [activeTab, setActiveTab] = useState<DashboardTab>("today");
+  
+  // Calendar state
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+
+  // Use the new salon bookings hook
+  const { bookingsByDate, bookingCounts, loading: bookingsLoading } = useSalonBookings({
+    salonId: salon?.id || "",
+    weekStart,
+  });
 
   useEffect(() => {
     if (!loading && !user) {
@@ -68,7 +78,6 @@ export default function Dashboard() {
 
       if (salonData) {
         setSalon(salonData);
-        await fetchTodayBookings(salonData.id);
       }
 
       setLoadingData(false);
@@ -78,70 +87,6 @@ export default function Dashboard() {
       fetchData();
     }
   }, [user]);
-
-  const fetchTodayBookings = async (salonId: string) => {
-    const today = format(new Date(), "yyyy-MM-dd");
-    const { data: bookingsData } = await supabase
-      .from("bookings")
-      .select(`
-        id,
-        client_name,
-        client_phone,
-        booking_date,
-        start_time,
-        end_time,
-        status,
-        total_amount,
-        service:services(name),
-        stylist:stylists(name, avatar_url)
-      `)
-      .eq("salon_id", salonId)
-      .eq("booking_date", today)
-      .order("start_time", { ascending: true });
-
-    if (bookingsData) {
-      setTodayBookings(
-        bookingsData.map((b) => ({
-          id: b.id,
-          client_name: b.client_name,
-          client_phone: b.client_phone,
-          booking_date: b.booking_date,
-          start_time: b.start_time,
-          end_time: b.end_time,
-          status: b.status,
-          total_amount: b.total_amount,
-          service_name: (b.service as { name: string } | null)?.name || "Service",
-          stylist_name: (b.stylist as { name: string; avatar_url: string | null } | null)?.name || null,
-          stylist_avatar: (b.stylist as { name: string; avatar_url: string | null } | null)?.avatar_url || null,
-        }))
-      );
-    }
-  };
-
-  // Set up realtime subscription for bookings
-  useEffect(() => {
-    if (!salon) return;
-
-    const channel = supabase
-      .channel(`salon_bookings_${salon.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "bookings",
-          filter: `salon_id=eq.${salon.id}`,
-        },
-        () => {
-          fetchTodayBookings(salon.id);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [salon]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -214,6 +159,15 @@ export default function Dashboard() {
     );
   }
 
+  // Get bookings for selected date
+  const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
+  const selectedDayBookings = bookingsByDate[selectedDateStr] || [];
+
+  // Calculate stats from current week
+  const allBookings = Object.values(bookingsByDate).flat();
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const todayBookings = bookingsByDate[todayStr] || [];
+
   const renderTabContent = () => {
     switch (activeTab) {
       case "today":
@@ -239,7 +193,7 @@ export default function Dashboard() {
                     <Users className="w-5 h-5 text-secondary" />
                   </div>
                   <p className="font-display text-2xl font-bold text-foreground">
-                    {todayBookings.filter((b) => b.status === "confirmed").length}
+                    {allBookings.filter((b) => b.status === "confirmed").length}
                   </p>
                   <p className="text-xs text-muted-foreground">Confirmed</p>
                 </CardContent>
@@ -251,49 +205,30 @@ export default function Dashboard() {
                     <DollarSign className="w-5 h-5 text-success" />
                   </div>
                   <p className="font-display text-2xl font-bold text-foreground">
-                    {todayBookings.filter((b) => b.status === "pending").length}
+                    {allBookings.filter((b) => b.status === "pending").length}
                   </p>
                   <p className="text-xs text-muted-foreground">Pending</p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Today's Bookings */}
-            <div className="space-y-3">
-              <h3 className="font-display font-semibold text-foreground flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-primary" />
-                Today's Appointments
-                <span className="text-sm font-normal text-muted-foreground ml-auto">
-                  {format(new Date(), "MMM d")}
-                </span>
-              </h3>
+            {/* Calendar */}
+            <SalonCalendar
+              bookingCounts={bookingCounts}
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+              weekStart={weekStart}
+              onWeekChange={setWeekStart}
+            />
 
-              {todayBookings.length === 0 ? (
-                <Card className="card-glass">
-                  <CardContent className="p-6 text-center">
-                    <Clock className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-                    <p className="text-muted-foreground text-sm">
-                      No bookings for today
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Share your booking link to get started
-                    </p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-3">
-                  {todayBookings.map((booking) => (
-                    <SalonBookingCard
-                      key={booking.id}
-                      booking={booking}
-                      onConfirm={handleConfirmBooking}
-                      onComplete={handleCompleteBooking}
-                      onCancel={handleCancelBooking}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Selected Day Bookings */}
+            <DayBookingsList
+              date={selectedDate}
+              bookings={selectedDayBookings}
+              onConfirm={handleConfirmBooking}
+              onComplete={handleCompleteBooking}
+              onCancel={handleCancelBooking}
+            />
 
             {/* Booking Link */}
             <Card className="card-glass border-primary/20">
