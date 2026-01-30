@@ -185,6 +185,7 @@ export type Database = {
       salons: {
         Row: {
           address: string | null
+          category: string | null
           city: string | null
           cover_image_url: string | null
           created_at: string
@@ -202,6 +203,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          category?: string | null
           city?: string | null
           cover_image_url?: string | null
           created_at?: string
@@ -219,6 +221,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          category?: string | null
           city?: string | null
           cover_image_url?: string | null
           created_at?: string

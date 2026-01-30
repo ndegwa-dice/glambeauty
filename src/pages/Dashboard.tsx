@@ -14,6 +14,7 @@ import { SalonCalendar } from "@/components/salon/SalonCalendar";
 import { DayBookingsList } from "@/components/salon/DayBookingsList";
 import { ServiceManager } from "@/components/salon/ServiceManager";
 import { StylistManager } from "@/components/salon/StylistManager";
+import { WorkingHoursManager } from "@/components/salon/WorkingHoursManager";
 import { 
   Calendar, 
   Users, 
@@ -259,16 +260,7 @@ export default function Dashboard() {
       case "settings":
         return (
           <div className="space-y-4">
-            <Card className="card-glass">
-              <CardContent className="p-4">
-                <h3 className="font-display font-semibold text-foreground mb-4">
-                  Salon Settings
-                </h3>
-                <p className="text-muted-foreground text-sm">
-                  Settings coming soon...
-                </p>
-              </CardContent>
-            </Card>
+            <WorkingHoursManager salonId={salon.id} />
           </div>
         );
 

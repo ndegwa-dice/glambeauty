@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format, isSameDay } from "date-fns";
 import { useClientBookings } from "@/hooks/useClientBookings";
-import { useDiscoverSalons, DiscoverSalon } from "@/hooks/useDiscoverSalons";
+import { useDiscoverSalons, DiscoverSalon, SalonCategory } from "@/hooks/useDiscoverSalons";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardHeader } from "./DashboardHeader";
@@ -9,6 +9,7 @@ import { ClientCalendar } from "./ClientCalendar";
 import { ClientBookingCard } from "./ClientBookingCard";
 import { SalonDiscovery } from "./SalonDiscovery";
 import { BookingSheet } from "./BookingSheet";
+import { CategoryFilter } from "./CategoryFilter";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Sparkles, Plus } from "lucide-react";
@@ -16,7 +17,9 @@ import { Sparkles, Plus } from "lucide-react";
 export function ClientDashboard() {
   const { toast } = useToast();
   const { bookings, upcomingBookings, loading: bookingsLoading } = useClientBookings();
-  const { salons, loading: salonsLoading } = useDiscoverSalons();
+
+  const [selectedCategory, setSelectedCategory] = useState<SalonCategory>("all");
+  const { salons, loading: salonsLoading } = useDiscoverSalons(selectedCategory);
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [selectedSalon, setSelectedSalon] = useState<DiscoverSalon | null>(null);
@@ -144,6 +147,12 @@ export function ClientDashboard() {
               <Sparkles className="w-4 h-4 text-primary" />
               Discover Beauty Spots
             </h2>
+            
+            {/* Category Filter */}
+            <div className="mb-4">
+              <CategoryFilter selected={selectedCategory} onSelect={setSelectedCategory} />
+            </div>
+
             <SalonDiscovery
               salons={salons}
               loading={salonsLoading}
