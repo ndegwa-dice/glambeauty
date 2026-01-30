@@ -1,329 +1,330 @@
 
-# Enhanced Salon Dashboard with Calendar & Stylist Selection
+# GLAM254 Premium Hero Section with Parallax Motion
 
 ## Overview
-Build a comprehensive salon dashboard with a calendar view matching the client side, enable clients to choose their preferred stylist during booking, implement robust booking clash prevention, and allow salon owners to mark sessions as complete.
+Build a stunning, motion-rich hero section featuring Tracy's portrait as a blurred background, Lando Norris-style parallax scroll effects, floating glassmorphism cards, and a premium app mockup - all embodying Nairobi luxury beauty vibes.
 
 ---
 
-## Current State Analysis
-
-### What Already Works
-- Salon dashboard shows today's bookings with confirm/complete/cancel actions
-- Real-time subscription for bookings exists (lines 122-144 in Dashboard.tsx)
-- Auto-assign stylist logic exists but clients cannot choose stylists manually
-- `useAvailableSlots` checks for time conflicts but not per-stylist
-- Client calendar shows week view with booking indicators
-
-### What Needs to Be Built
-1. **Salon Calendar View** - Same week-based calendar as client side for salon dashboard
-2. **Stylist Selection in Booking** - Let clients pick a preferred stylist
-3. **Per-Stylist Availability** - Update slot logic to check individual stylist schedules
-4. **Clash Prevention** - Block booking if stylist is already booked for that time
-5. **Visual Stylist Schedule** - Show client which stylists are booked and when
-6. **Mark Session Complete** - Already exists, needs enhanced UI feedback
-
----
-
-## Architecture Changes
-
-### New Hook: useSalonBookings
-Fetch all bookings for a salon for a date range (not just today) with real-time updates.
+## Visual Architecture
 
 ```text
-Input: salonId, startDate, endDate
-Output: bookings[] with full details (client, service, stylist, time)
-Features: Real-time subscription, formatted for calendar display
-```
-
-### Updated Hook: useAvailableSlots
-Add stylist-aware availability checking:
-- New parameter: `stylistId` (optional)
-- When stylist selected, only check that stylist's bookings for conflicts
-- When no stylist, check all bookings (salon-wide availability)
-
-### New Hook: useSalonStylistsWithAvailability
-Extend existing `useSalonStylists` to include:
-- Each stylist's bookings for a given date
-- Busy time ranges per stylist
-- Visual indicator of availability
-
----
-
-## Salon Dashboard Calendar Component
-
-### SalonCalendar.tsx
-Similar to `ClientCalendar.tsx` but for salon view:
-- Week navigation (same as client)
-- Booking indicators per day (number of bookings)
-- Click date to see bookings for that day
-- Color coding: pending (amber), confirmed (green), completed (purple)
-
-### Enhanced Today Tab
-```text
-+--------------------------------------------------+
-|  [Calendar Week View - Same as Client Side]       |
-|  Mon Tue Wed Thu Fri Sat Sun                     |
-|   5   6   7   8   9  10  11                      |
-|   ·   ·  ●●  ●  ·   ·   ●                        |
-+--------------------------------------------------+
-|                                                  |
-|  === Selected Day: Thursday, Jan 29 ===          |
-|                                                  |
-|  [Booking Card] 09:00 - 10:00                    |
-|  - Jane Wanjiku | Gel Manicure                   |
-|  - Assigned: Sarah (avatar)                      |
-|  - Status: Confirmed                             |
-|  - [Mark Complete] [Cancel]                      |
-|                                                  |
-|  [Booking Card] 10:30 - 11:30                    |
-|  - Mary Kamau | Hair Braiding                    |
-|  - Assigned: Emma (avatar)                       |
-|  - Status: Pending                               |
-|  - [Confirm] [Cancel]                            |
-|                                                  |
-+--------------------------------------------------+
++------------------------------------------------------------------+
+|  [FULL-SCREEN BACKGROUND]                                         |
+|  Tracy portrait (blurred) + dark gradient overlay                 |
+|  + animated particles + purple glow                               |
+|                                                                   |
+|  +---------------------------+  +----------------------------+    |
+|  | LEFT SIDE (Content)       |  | RIGHT SIDE (App Mockup)    |    |
+|  |                           |  |                            |    |
+|  | "GLAM254"                 |  |  +----------------------+  |    |
+|  | "Beauty, Booked in        |  |  |  Phone Frame         |  |    |
+|  |  Seconds."                |  |  |  - Calendar view     |  |    |
+|  |                           |  |  |  - Confirmed stylist |  |    |
+|  | "Tracy doesn't wait..."   |  |  |  - Deposit paid      |  |    |
+|  |                           |  |  +----------------------+  |    |
+|  | [Book a Salon Now]        |  |      (3D tilt + parallax)  |    |
+|  | [For Salons: Get...]      |  |                            |    |
+|  +---------------------------+  +----------------------------+    |
+|                                                                   |
+|  +-------------+ +-------------+ +-------------+                  |
+|  | Deposit to  | | Smart Beauty| | Verified    |                  |
+|  | Confirm     | | Calendar    | | Stylists    |                  |
+|  +-------------+ +-------------+ +-------------+                  |
+|  (Floating glass cards with parallax movement)                    |
+|                                                                   |
+|                        [Scroll hint arrow]                        |
++------------------------------------------------------------------+
 ```
 
 ---
 
-## Client-Side Stylist Selection
+## Implementation Strategy
 
-### Updated BookingSheet.tsx Flow
-```text
-Step 1: Select Service
-Step 2: [NEW] Select Stylist (Optional)
-        - Show all stylists who can do this service
-        - Show busy indicators per stylist
-        - "Any Available" option for auto-assign
-Step 3: Select Date & Time
-        - Slots now filtered by selected stylist's availability
-        - If "Any Available", show all open slots
-Step 4: Confirm Booking
-```
+### 1. Background Layer (Tracy Portrait)
+- Copy Tracy's image to `src/assets/hero-tracy.jpg`
+- Apply CSS blur filter (8-12px for elegant silhouette)
+- Dark gradient overlay: `linear-gradient(to bottom, rgba(0,0,0,0.6), rgba(13,13,15,0.9))`
+- Soft purple glow spot behind headline
+- Parallax: background moves at 50% scroll speed using `transform: translateY(calc(var(--scroll-y) * 0.5))`
 
-### StylistPicker Component
-```text
-+--------------------------------------------------+
-|  Choose Your Stylist                             |
-+--------------------------------------------------+
-|                                                  |
-|  [●] Any Available Stylist                       |
-|      We'll assign the first available            |
-|                                                  |
-|  [○] Sarah Mwangi                                |
-|      Specialist in: Nails, Gel, Pedicure         |
-|      Next available: 2:00 PM today               |
-|                                                  |
-|  [○] Emma Ochieng                                |
-|      Specialist in: Hair, Braiding               |
-|      Booked until: 4:00 PM                       |
-|                                                  |
-+--------------------------------------------------+
-```
+### 2. Animated Particles
+- Create a CSS-only particle system using pseudo-elements
+- 10-15 small dots that float gently across the screen
+- Subtle opacity and blur for dreamy effect
+- Keyframe animation for continuous floating motion
+
+### 3. Hero Content (Left Side)
+**Headline Section:**
+- Logo: "GLAM254" with gradient text
+- Main headline: "Beauty, Booked in Seconds."
+- Purple glow effect behind text using CSS filter
+- Staggered fade-in animations on load
+
+**Microcopy:**
+- "Tracy doesn't wait for replies. She books."
+- Subtle italic styling, fades in after headline
+
+**Subtext:**
+- "Browse salons, book stylists, pay a deposit, and show up confirmed. No DMs. No calls. No stress."
+
+**CTA Buttons:**
+- Primary: "Book a Salon Now" - gradient background, hover glow, scale effect
+- Secondary: "For Salons: Get More Bookings" - outline style, hover border glow
+
+### 4. App Mockup (Right Side - Desktop Only)
+**Phone Frame Design:**
+- Modern phone bezel using CSS borders/shadows
+- Screen content showing:
+  - Calendar with bookings highlighted
+  - "Confirmed with Sarah" stylist card
+  - "Deposit Paid" badge
+
+**3D Effects:**
+- Subtle rotateX/rotateY for depth
+- Parallax movement (faster than background)
+- Soft drop shadow for floating effect
+- Hover tilt effect using mouse position
+
+### 5. Floating Glass Cards
+**Three feature cards:**
+1. "Deposit to Confirm" - Credit card icon
+2. "Smart Beauty Calendar" - Calendar icon
+3. "Verified Stylists" - Star/check icon
+
+**Styling:**
+- Glassmorphism: `backdrop-blur-xl`, semi-transparent background
+- Purple glow edges on hover
+- Parallax: each card moves at different speeds
+- Subtle hover tilt animation
+
+### 6. Scroll Hint
+- Minimal animated arrow/chevron at bottom
+- Fade out on scroll
+- "Scroll to explore" microcopy (optional)
 
 ---
 
-## Per-Stylist Availability Logic
+## File Structure
 
-### Modified useAvailableSlots Hook
+### Files to Create
+
+1. **`src/components/hero/HeroSection.tsx`** - Main hero component
+   - Manages scroll state and parallax transforms
+   - Orchestrates all sub-components
+
+2. **`src/components/hero/ParallaxBackground.tsx`** - Background with Tracy
+   - Blurred portrait
+   - Gradient overlay
+   - Purple glow spots
+
+3. **`src/components/hero/AnimatedParticles.tsx`** - Floating particles
+   - CSS-only animated dots
+   - Random positions and delays
+
+4. **`src/components/hero/HeroContent.tsx`** - Left side content
+   - Headline, subtext, CTAs
+   - Entrance animations
+
+5. **`src/components/hero/AppMockup.tsx`** - Phone mockup
+   - 3D tilting effect
+   - Mock app UI inside
+
+6. **`src/components/hero/FloatingCards.tsx`** - Glass feature cards
+   - Three cards with icons
+   - Parallax positioning
+
+7. **`src/components/hero/ScrollHint.tsx`** - Bottom scroll indicator
+   - Animated chevron
+
+### Files to Modify
+
+1. **`src/pages/Index.tsx`** - Replace current hero with new HeroSection
+2. **`src/index.css`** - Add new parallax and animation keyframes
+3. **`tailwind.config.ts`** - Add new animation utilities
+
+---
+
+## Technical Implementation
+
+### Custom Hook: useParallax
 ```typescript
-interface UseAvailableSlotsProps {
-  salonId: string;
-  date: Date | undefined;
-  serviceDuration: number;
-  stylistId?: string | null;  // NEW: Optional stylist filter
-}
-
-// Logic:
-// 1. Fetch working hours (salon-wide)
-// 2. Fetch bookings for date
-//    - If stylistId provided: filter by stylist_id
-//    - If not: check ALL bookings for time conflicts
-// 3. Generate slots, marking unavailable where conflicts exist
-```
-
-### Real-Time Clash Prevention
-When client selects a time slot:
-1. Re-check availability immediately before booking insert
-2. If slot taken (race condition), show error and refresh slots
-3. Use Supabase RLS + unique constraint or application-level check
-
----
-
-## Updated Booking Flow with Stylist Choice
-
-### Client Perspective
-1. Select service
-2. See stylists who can perform that service
-3. Pick specific stylist OR "Any Available"
-4. Calendar shows availability based on stylist choice
-5. If specific stylist picked, only their free slots shown
-6. If "Any Available", all slots where at least one stylist is free
-7. On confirm: Either save chosen stylist or auto-assign
-
-### Salon Perspective (Real-Time Sync)
-- New booking appears instantly in calendar
-- Stylist assignment visible immediately
-- Can reassign stylist if needed (future enhancement)
-
----
-
-## Files to Create
-
-### New Components
-1. `src/components/salon/SalonCalendar.tsx` - Week calendar for salon dashboard
-2. `src/components/booking/StylistPicker.tsx` - Stylist selection during booking
-3. `src/components/salon/DayBookingsList.tsx` - List bookings for a selected day
-
-### New/Updated Hooks
-1. `src/hooks/useSalonBookings.ts` - Fetch bookings for date range with realtime
-2. Update `src/hooks/useAvailableSlots.ts` - Add stylistId parameter
-
----
-
-## Files to Modify
-
-### Dashboard
-- `src/pages/Dashboard.tsx` - Add calendar view, date-based filtering
-
-### Booking Flow
-- `src/components/client/BookingSheet.tsx` - Add stylist selection step
-- `src/pages/SalonBooking.tsx` - Add stylist selection for non-logged-in users
-
-### Hooks
-- `src/hooks/useAvailableSlots.ts` - Per-stylist filtering
-
----
-
-## Implementation Details
-
-### useSalonBookings Hook
-```typescript
-interface SalonBookingWithDetails {
-  id: string;
-  booking_date: string;
-  start_time: string;
-  end_time: string;
-  status: BookingStatus;
-  client_name: string;
-  client_phone: string;
-  service_name: string;
-  stylist_id: string | null;
-  stylist_name: string | null;
-  stylist_avatar: string | null;
-  total_amount: number;
-}
-
-function useSalonBookings(salonId: string, startDate: string, endDate: string) {
-  // Fetch bookings in date range
-  // Real-time subscription
-  // Group by date for calendar display
-  return { bookings, bookingsByDate, loading };
+// Tracks scroll position and calculates parallax transforms
+function useParallax() {
+  const [scrollY, setScrollY] = useState(0);
+  
+  useEffect(() => {
+    const handleScroll = () => setScrollY(window.scrollY);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+  
+  // Returns transform values for different parallax speeds
+  return {
+    slow: scrollY * 0.3,   // Background
+    medium: scrollY * 0.5, // Cards
+    fast: scrollY * 0.7,   // Mockup
+  };
 }
 ```
 
-### SalonCalendar Component
-- Reuse structure from ClientCalendar.tsx
-- Show booking count badges per day
-- Click to filter bookings list below
-- Sync with today's bookings state
-
-### StylistPicker Component
-- Fetch stylists for selected service via stylist_services join
-- Show each stylist's current bookings for selected date
-- Calculate "next available" time for display
-- Radio selection: "Any" vs specific stylist
-
-### Updated Availability Check
+### Custom Hook: useMouseTilt
 ```typescript
-// In useAvailableSlots
-const fetchSlots = async () => {
-  // ... existing working hours fetch ...
+// Creates 3D tilt effect based on mouse position
+function useMouseTilt(ref: RefObject<HTMLElement>, intensity = 10) {
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
   
-  // Modified bookings query
-  let bookingsQuery = supabase
-    .from("bookings")
-    .select("start_time, end_time, stylist_id")
-    .eq("salon_id", salonId)
-    .eq("booking_date", dateStr)
-    .neq("status", "cancelled");
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = element.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width - 0.5;
+      const y = (e.clientY - rect.top) / rect.height - 0.5;
+      setTilt({ x: y * intensity, y: -x * intensity });
+    };
+    
+    element.addEventListener('mousemove', handleMouseMove);
+    return () => element.removeEventListener('mousemove', handleMouseMove);
+  }, [ref, intensity]);
   
-  // Filter by stylist if specified
-  if (stylistId) {
-    bookingsQuery = bookingsQuery.eq("stylist_id", stylistId);
-  }
-  
-  const { data: existingBookings } = await bookingsQuery;
-  
-  // ... rest of slot generation logic ...
-};
+  return tilt;
+}
+```
+
+### New CSS Animations
+```css
+/* Floating particles */
+@keyframes float-particle {
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
+  50% { transform: translateY(-20px) translateX(10px); opacity: 0.6; }
+}
+
+/* Entrance animations - staggered */
+@keyframes hero-fade-up {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Glow pulse behind headline */
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
+}
+
+/* Scroll hint bounce */
+@keyframes scroll-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(8px); }
+}
 ```
 
 ---
 
-## Real-Time Sync Architecture
+## Component Details
 
-```text
-CLIENT DASHBOARD                    SALON DASHBOARD
-      |                                    |
-      |  Client books with stylist         |
-      +-----------> Supabase <-------------+
-                   Realtime                
-      |                                    |
-      |  Bookings subscription             |
-      +<-------------------------------+   |
-      |                                |   |
-   Calendar updates                 Calendar updates
-   Shows "Booked"                   Shows new booking
-      |                                    |
-      |                                    |
-      +<------- Salon confirms booking ----+
-      |                                    |
-   Status badge                    Button changes to
-   changes to                      "Mark Complete"
-   "Confirmed"                            |
-```
+### ParallaxBackground
+- Full-screen fixed background
+- Tracy image with object-fit: cover
+- CSS blur filter: 8px
+- Z-index: -1 (behind everything)
+- Transform: translateY based on scroll for parallax
+
+### AnimatedParticles
+- Absolutely positioned container
+- 12 particle elements with randomized:
+  - Positions (left, top percentages)
+  - Animation delays (0-5s)
+  - Sizes (2-6px)
+  - Opacities (0.2-0.5)
+- Pointer-events: none
+
+### HeroContent
+- Max-width container for text
+- Staggered animation delays:
+  - Logo: 0s
+  - Headline: 0.2s
+  - Microcopy: 0.4s
+  - Subtext: 0.6s
+  - CTAs: 0.8s
+- Purple glow spot using absolute positioned div with blur
+
+### AppMockup (Desktop Only)
+- Hidden on mobile (lg:block)
+- Phone frame: rounded-3xl, dark border
+- Inner screen with gradient background
+- Mock UI elements:
+  - "Today" header
+  - Calendar row with highlighted date
+  - Booking card with stylist avatar
+  - "Deposit Paid" green badge
+- CSS transform for 3D perspective
+- Mouse-following tilt effect
+
+### FloatingCards
+- Flex row on desktop, stack on mobile
+- Each card:
+  - Icon (emoji or Lucide icon)
+  - Title text
+  - Glassmorphism styling
+  - Different parallax offset
+  - Hover: scale + glow border
+
+---
+
+## Responsive Behavior
+
+### Mobile (< 768px)
+- Tracy background: centered, less blur
+- Content: full-width, centered text
+- App mockup: hidden
+- Floating cards: horizontal scroll or 2x2 grid
+- Buttons: full-width, stacked
+
+### Desktop (>= 1024px)
+- Two-column layout: content left, mockup right
+- Floating cards: row below content
+- Full parallax effects active
+- Mouse tilt on mockup
+
+---
+
+## Performance Considerations
+
+1. **Passive scroll listeners** - use `{ passive: true }` for smooth scroll
+2. **CSS transforms only** - no layout-triggering properties for animations
+3. **will-change hints** - applied to parallax elements
+4. **Reduced motion** - respect `prefers-reduced-motion` media query
+5. **Image optimization** - Tracy image should be reasonably sized (max 1MB)
 
 ---
 
 ## Implementation Order
 
-1. **Create useSalonBookings hook** - Date range fetching with realtime
-2. **Create SalonCalendar component** - Week view for salon dashboard
-3. **Update Dashboard.tsx** - Integrate calendar, date-based filtering
-4. **Create StylistPicker component** - Stylist selection UI
-5. **Update useAvailableSlots** - Add stylistId parameter
-6. **Update BookingSheet.tsx** - Add stylist selection step
-7. **Update SalonBooking.tsx** - Add stylist selection for public booking
+1. Copy Tracy image to assets
+2. Add new CSS keyframes and utilities
+3. Create useParallax hook
+4. Create ParallaxBackground component
+5. Create AnimatedParticles component
+6. Create HeroContent with animations
+7. Create FloatingCards component
+8. Create AppMockup with 3D effects
+9. Create ScrollHint component
+10. Build HeroSection to combine all
+11. Replace Index.tsx hero section
+12. Test parallax and animations
+13. Responsive adjustments
 
 ---
 
-## Edge Cases Handled
+## Brand Consistency
 
-1. **No stylists assigned to service** - Show "Any Available" only, auto-assign on booking
-2. **All stylists booked** - Show "No available slots" message
-3. **Race condition** - Two clients booking same slot simultaneously
-   - Handle with error message and slot refresh
-4. **Stylist marked inactive** - Don't show in picker, don't affect existing bookings
-5. **Service duration longer than remaining time** - Slot not shown
-
----
-
-## UI/UX Enhancements
-
-### Visual Clash Indicators
-- Gray out slots where selected stylist is booked
-- Show "Booked by [Client Name]" tooltip on hover (salon view only)
-- Animated transition when slots update in real-time
-
-### Mark Complete Flow
-- Add satisfaction animation (sparkles/checkmark)
-- Show completion time timestamp
-- Update stylist's "available from" time
-
-### Barbie Theme Consistency
-- Stylist cards with gradient borders
-- Selected stylist has glow effect
-- Calendar matches client-side styling
-- All components use existing card-glass, shimmer-glass classes
+- Uses existing color variables (--primary, --secondary)
+- Maintains Barbie Glamour aesthetic
+- Leverages existing utility classes:
+  - `gradient-primary`, `gradient-barbie`
+  - `glow-pink`, `glow-barbie`
+  - `card-glass`, `shimmer-glass`
+  - `text-gradient`
+- Typography: Outfit for headlines, DM Sans for body
