@@ -92,6 +92,29 @@ export function useWorkingHours(salonId: string | null): UseWorkingHoursReturn {
   const updateHours = useCallback(async (dayOfWeek: number, updates: Partial<WorkingHourUpdate>): Promise<{ error: Error | null }> => {
     if (!salonId) return { error: new Error("No salon ID") };
 
+    // Optimistic update - update local state immediately for instant UI feedback
+    setWorkingHours((prev) => {
+      const existingIndex = prev.findIndex(h => h.day_of_week === dayOfWeek);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = { ...updated[existingIndex], ...updates };
+        return updated;
+      }
+      // If no existing record, add a temporary one (will be replaced by realtime)
+      const tempRecord: WorkingHour = {
+        id: `temp-${dayOfWeek}`,
+        salon_id: salonId,
+        day_of_week: dayOfWeek,
+        open_time: DEFAULT_HOURS.open_time,
+        close_time: DEFAULT_HOURS.close_time,
+        is_closed: dayOfWeek === 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...updates,
+      };
+      return [...prev, tempRecord].sort((a, b) => a.day_of_week - b.day_of_week);
+    });
+
     // First, check if record exists in the database directly (more reliable than local state)
     const { data: existing, error: fetchError } = await supabase
       .from("working_hours")
@@ -102,6 +125,8 @@ export function useWorkingHours(salonId: string | null): UseWorkingHoursReturn {
 
     if (fetchError) {
       console.error("Error checking existing hours:", fetchError);
+      // Revert optimistic update on error
+      await fetchHours();
       return { error: fetchError };
     }
 
@@ -114,6 +139,8 @@ export function useWorkingHours(salonId: string | null): UseWorkingHoursReturn {
 
       if (error) {
         console.error("Error updating hours:", error);
+        // Revert optimistic update on error
+        await fetchHours();
         return { error };
       }
     } else {
@@ -133,12 +160,14 @@ export function useWorkingHours(salonId: string | null): UseWorkingHoursReturn {
 
       if (error) {
         console.error("Error inserting hours:", error);
+        // Revert optimistic update on error
+        await fetchHours();
         return { error };
       }
     }
 
     return { error: null };
-  }, [salonId]);
+  }, [salonId, fetchHours]);
 
   const initializeDefaultHours = useCallback(async () => {
     if (!salonId) return;
