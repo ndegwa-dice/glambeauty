@@ -36,6 +36,13 @@ const formatTime = (time: string) => {
   return `${h12}:${minutes} ${ampm}`;
 };
 
+// Normalize time from "HH:MM:SS" to "HH:MM"
+const normalizeTime = (time: string): string => {
+  if (!time) return "09:00";
+  const parts = time.split(":");
+  return `${parts[0]}:${parts[1]}`;
+};
+
 export function WorkingHoursManager({ salonId }: WorkingHoursManagerProps) {
   const { toast } = useToast();
   const { workingHours, loading, updateHours, initializeDefaultHours } = useWorkingHours(salonId);
@@ -55,6 +62,11 @@ export function WorkingHoursManager({ salonId }: WorkingHoursManagerProps) {
         title: "Failed to update",
         description: error.message,
       });
+    } else {
+      toast({
+        title: "Hours updated!",
+        description: isClosed ? "Day marked as closed" : "Day marked as open",
+      });
     }
   };
 
@@ -65,6 +77,10 @@ export function WorkingHoursManager({ salonId }: WorkingHoursManagerProps) {
         variant: "destructive",
         title: "Failed to update",
         description: error.message,
+      });
+    } else {
+      toast({
+        title: "Hours updated!",
       });
     }
   };
@@ -99,8 +115,8 @@ export function WorkingHoursManager({ salonId }: WorkingHoursManagerProps) {
           {[1, 2, 3, 4, 5, 6, 0].map((dayOfWeek) => {
             const hours = hoursByDay.get(dayOfWeek);
             const isClosed = hours?.is_closed ?? (dayOfWeek === 0);
-            const openTime = hours?.open_time ?? "09:00";
-            const closeTime = hours?.close_time ?? "18:00";
+            const openTime = normalizeTime(hours?.open_time ?? "09:00");
+            const closeTime = normalizeTime(hours?.close_time ?? "18:00");
 
             return (
               <div
