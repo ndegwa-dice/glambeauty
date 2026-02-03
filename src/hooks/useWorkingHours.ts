@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
@@ -19,37 +19,39 @@ const DEFAULT_HOURS = {
   is_closed: false,
 };
 
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+export const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export function useWorkingHours(salonId: string | null): UseWorkingHoursReturn {
   const [workingHours, setWorkingHours] = useState<WorkingHour[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchHours = useCallback(async () => {
     if (!salonId) {
       setWorkingHours([]);
       setLoading(false);
       return;
     }
 
-    const fetchHours = async () => {
-      const { data, error } = await supabase
-        .from("working_hours")
-        .select("*")
-        .eq("salon_id", salonId)
-        .order("day_of_week", { ascending: true });
+    const { data, error } = await supabase
+      .from("working_hours")
+      .select("*")
+      .eq("salon_id", salonId)
+      .order("day_of_week", { ascending: true });
 
-      if (error) {
-        console.error("Error fetching working hours:", error);
-        setLoading(false);
-        return;
-      }
-
-      setWorkingHours(data || []);
+    if (error) {
+      console.error("Error fetching working hours:", error);
       setLoading(false);
-    };
+      return;
+    }
 
+    setWorkingHours(data || []);
+    setLoading(false);
+  }, [salonId]);
+
+  useEffect(() => {
     fetchHours();
+
+    if (!salonId) return;
 
     // Subscribe to realtime changes
     const channel = supabase
@@ -64,7 +66,13 @@ export function useWorkingHours(salonId: string | null): UseWorkingHoursReturn {
         },
         (payload) => {
           if (payload.eventType === "INSERT") {
-            setWorkingHours((prev) => [...prev, payload.new as WorkingHour].sort((a, b) => a.day_of_week - b.day_of_week));
+            setWorkingHours((prev) => {
+              // Avoid duplicates
+              if (prev.some(h => h.id === (payload.new as WorkingHour).id)) {
+                return prev;
+              }
+              return [...prev, payload.new as WorkingHour].sort((a, b) => a.day_of_week - b.day_of_week);
+            });
           } else if (payload.eventType === "UPDATE") {
             setWorkingHours((prev) =>
               prev.map((h) => (h.id === payload.new.id ? (payload.new as WorkingHour) : h))
@@ -79,39 +87,74 @@ export function useWorkingHours(salonId: string | null): UseWorkingHoursReturn {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [salonId]);
+  }, [salonId, fetchHours]);
 
-  const updateHours = async (dayOfWeek: number, updates: Partial<WorkingHourUpdate>): Promise<{ error: Error | null }> => {
+  const updateHours = useCallback(async (dayOfWeek: number, updates: Partial<WorkingHourUpdate>): Promise<{ error: Error | null }> => {
     if (!salonId) return { error: new Error("No salon ID") };
 
-    const existing = workingHours.find((h) => h.day_of_week === dayOfWeek);
+    // First, check if record exists in the database directly (more reliable than local state)
+    const { data: existing, error: fetchError } = await supabase
+      .from("working_hours")
+      .select("id")
+      .eq("salon_id", salonId)
+      .eq("day_of_week", dayOfWeek)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error("Error checking existing hours:", fetchError);
+      return { error: fetchError };
+    }
 
     if (existing) {
+      // Update existing record
       const { error } = await supabase
         .from("working_hours")
         .update(updates)
         .eq("id", existing.id);
 
-      return { error };
+      if (error) {
+        console.error("Error updating hours:", error);
+        return { error };
+      }
     } else {
       // Create new record
-      const { error } = await supabase.from("working_hours").insert({
+      const newHour: WorkingHourInsert = {
         salon_id: salonId,
         day_of_week: dayOfWeek,
         open_time: DEFAULT_HOURS.open_time,
         close_time: DEFAULT_HOURS.close_time,
-        is_closed: false,
+        is_closed: dayOfWeek === 0, // Sunday closed by default
         ...updates,
-      } as WorkingHourInsert);
+      };
 
-      return { error };
+      const { error } = await supabase
+        .from("working_hours")
+        .insert(newHour);
+
+      if (error) {
+        console.error("Error inserting hours:", error);
+        return { error };
+      }
     }
-  };
 
-  const initializeDefaultHours = async () => {
+    return { error: null };
+  }, [salonId]);
+
+  const initializeDefaultHours = useCallback(async () => {
     if (!salonId) return;
 
-    const existingDays = workingHours.map((h) => h.day_of_week);
+    // Check which days already exist in the database
+    const { data: existingData, error: fetchError } = await supabase
+      .from("working_hours")
+      .select("day_of_week")
+      .eq("salon_id", salonId);
+
+    if (fetchError) {
+      console.error("Error fetching existing hours:", fetchError);
+      return;
+    }
+
+    const existingDays = (existingData || []).map((h) => h.day_of_week);
     const missingDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => !existingDays.includes(d));
 
     if (missingDays.length === 0) return;
@@ -124,8 +167,12 @@ export function useWorkingHours(salonId: string | null): UseWorkingHoursReturn {
       is_closed: day === 0, // Sunday closed by default
     }));
 
-    await supabase.from("working_hours").insert(newHours);
-  };
+    const { error } = await supabase.from("working_hours").insert(newHours);
+    
+    if (error) {
+      console.error("Error initializing default hours:", error);
+    }
+  }, [salonId]);
 
   return {
     workingHours,
@@ -134,5 +181,3 @@ export function useWorkingHours(salonId: string | null): UseWorkingHoursReturn {
     initializeDefaultHours,
   };
 }
-
-export { DAY_NAMES };
