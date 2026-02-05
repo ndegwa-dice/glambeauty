@@ -1,21 +1,31 @@
 import { cn } from "@/lib/utils";
-import { Calendar, Scissors, Users, Settings } from "lucide-react";
+import { Calendar, Scissors, Users, Settings, BarChart3, CalendarDays } from "lucide-react";
 
-export type DashboardTab = "today" | "services" | "team" | "settings";
+export type DashboardTab = "today" | "calendar" | "analytics" | "services" | "team" | "settings";
 
 interface DashboardTabsProps {
   activeTab: DashboardTab;
   onTabChange: (tab: DashboardTab) => void;
+  isStylist?: boolean;
 }
 
-const tabs = [
+const ownerTabs = [
   { id: "today" as const, label: "Today", icon: Calendar },
+  { id: "calendar" as const, label: "Calendar", icon: CalendarDays },
+  { id: "analytics" as const, label: "Analytics", icon: BarChart3 },
   { id: "services" as const, label: "Services", icon: Scissors },
   { id: "team" as const, label: "Team", icon: Users },
   { id: "settings" as const, label: "Settings", icon: Settings },
 ];
 
-export function DashboardTabs({ activeTab, onTabChange }: DashboardTabsProps) {
+const stylistTabs = [
+  { id: "today" as const, label: "Today", icon: Calendar },
+  { id: "calendar" as const, label: "Calendar", icon: CalendarDays },
+  { id: "settings" as const, label: "Settings", icon: Settings },
+];
+
+export function DashboardTabs({ activeTab, onTabChange, isStylist = false }: DashboardTabsProps) {
+  const tabs = isStylist ? stylistTabs : ownerTabs;
   return (
     <div className="flex gap-1 p-1 bg-muted/30 rounded-xl border border-border/50">
       {tabs.map((tab) => {

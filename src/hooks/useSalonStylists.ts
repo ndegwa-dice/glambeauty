@@ -92,12 +92,21 @@ export function useSalonStylists(salonId: string | null): UseSalonStylistsReturn
   ): Promise<{ error: Error | null }> => {
     if (!salonId) return { error: new Error("No salon ID") };
 
+    // Include email and set invitation status if email provided
+    const stylistData: any = {
+      ...stylist,
+      salon_id: salonId,
+    };
+
+    if ((stylist as any).email) {
+      stylistData.email = (stylist as any).email;
+      stylistData.invitation_status = 'pending';
+      stylistData.invited_at = new Date().toISOString();
+    }
+
     const { data, error } = await supabase
       .from("stylists")
-      .insert({
-        ...stylist,
-        salon_id: salonId,
-      })
+      .insert(stylistData)
       .select()
       .single();
 

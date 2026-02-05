@@ -73,6 +73,9 @@ export function useUserRole(): UseUserRoleReturn {
     ? "client"
     : null;
 
+  // Check if user is a linked stylist (even without explicit role)
+  const isStylistLinked = roles.includes("stylist");
+
   const assignRole = async (role: AppRole): Promise<{ error: Error | null }> => {
     if (!user) return { error: new Error("Not authenticated") };
 

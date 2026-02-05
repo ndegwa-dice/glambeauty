@@ -28,6 +28,8 @@ export default function Auth() {
     if (user && !roleLoading && primaryRole) {
       if (primaryRole === "salon_owner") {
         navigate("/dashboard");
+      } else if (primaryRole === "stylist") {
+        navigate("/stylist");
       } else {
         navigate("/client");
       }
@@ -71,6 +73,8 @@ export default function Auth() {
 
       if (role === "salon_owner") {
         navigate("/dashboard");
+      } else if (role === "stylist") {
+        navigate("/stylist");
       } else {
         navigate("/client");
       }
