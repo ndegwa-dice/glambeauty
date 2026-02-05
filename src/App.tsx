@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
 import SalonBooking from "./pages/SalonBooking";
 import ClientPage from "./pages/ClientPage";
+import StylistDashboard from "./pages/StylistDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/salon/:slug" element={<SalonBooking />} />
             <Route path="/client" element={<ClientPage />} />
+            <Route path="/stylist" element={<StylistDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

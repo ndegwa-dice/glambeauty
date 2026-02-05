@@ -1,4 +1,4 @@
-import { MoreHorizontal, Pencil, Trash2, User } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, User, Mail, Check, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import type { Tables } from "@/integrations/supabase/types";
 type Service = Tables<"services">;
 
 interface StylistCardProps {
-  stylist: StylistWithServices;
+  stylist: StylistWithServices & { email?: string; invitation_status?: string };
   services: Service[];
   onEdit: (stylist: StylistWithServices) => void;
   onDelete: (stylistId: string) => void;
@@ -24,6 +24,7 @@ interface StylistCardProps {
 
 export function StylistCard({ stylist, services, onEdit, onDelete }: StylistCardProps) {
   const assignedServices = services.filter((s) => stylist.service_ids.includes(s.id));
+  const invitationStatus = (stylist as any).invitation_status;
 
   return (
     <Card className={cn(
@@ -51,7 +52,26 @@ export function StylistCard({ stylist, services, onEdit, onDelete }: StylistCard
                   Inactive
                 </Badge>
               )}
+              {invitationStatus === "pending" && (
+                <Badge variant="outline" className="text-2xs bg-warning/10 border-warning/30 text-warning">
+                  <Clock className="w-3 h-3 mr-1" />
+                  Pending
+                </Badge>
+              )}
+              {invitationStatus === "accepted" && stylist.user_id && (
+                <Badge variant="outline" className="text-2xs bg-success/10 border-success/30 text-success">
+                  <Check className="w-3 h-3 mr-1" />
+                  Linked
+                </Badge>
+              )}
             </div>
+
+            {(stylist as any).email && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                <Mail className="w-3 h-3" />
+                {(stylist as any).email}
+              </div>
+            )}
 
             {stylist.bio && (
               <p className="text-sm text-muted-foreground line-clamp-2 mb-2">

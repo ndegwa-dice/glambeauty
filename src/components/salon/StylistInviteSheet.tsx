@@ -4,72 +4,59 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { User, Mail, Sparkles } from "lucide-react";
-import type { StylistWithServices } from "@/hooks/useSalonStylists";
+import { Mail, User, Phone, Sparkles } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Service = Tables<"services">;
 
-interface StylistFormSheetProps {
+interface StylistInviteSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  stylist?: StylistWithServices | null;
   services: Service[];
-  onSubmit: (data: StylistFormData, serviceIds: string[]) => Promise<void>;
+  onSubmit: (data: StylistInviteData, serviceIds: string[]) => Promise<void>;
 }
 
-export interface StylistFormData {
+export interface StylistInviteData {
   name: string;
   email: string;
   phone_number: string;
   bio: string;
-  avatar_url: string;
-  is_active: boolean;
 }
 
-export function StylistFormSheet({ open, onOpenChange, stylist, services, onSubmit }: StylistFormSheetProps) {
+export function StylistInviteSheet({ 
+  open, 
+  onOpenChange, 
+  services, 
+  onSubmit 
+}: StylistInviteSheetProps) {
   const [submitting, setSubmitting] = useState(false);
-  const [formData, setFormData] = useState<StylistFormData>({
+  const [formData, setFormData] = useState<StylistInviteData>({
     name: "",
     email: "",
     phone_number: "",
     bio: "",
-    avatar_url: "",
-    is_active: true,
   });
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
   useEffect(() => {
-    if (stylist) {
-      setFormData({
-        name: stylist.name,
-        email: (stylist as any).email || "",
-        phone_number: stylist.phone_number || "",
-        bio: stylist.bio || "",
-        avatar_url: stylist.avatar_url || "",
-        is_active: stylist.is_active ?? true,
-      });
-      setSelectedServices(stylist.service_ids);
-    } else {
+    if (!open) {
       setFormData({
         name: "",
         email: "",
         phone_number: "",
         bio: "",
-        avatar_url: "",
-        is_active: true,
       });
       setSelectedServices([]);
     }
-  }, [stylist, open]);
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,17 +76,35 @@ export function StylistFormSheet({ open, onOpenChange, stylist, services, onSubm
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl bg-background border-t border-border/50">
+      <SheetContent side="bottom" className="h-[90vh] rounded-t-3xl bg-background border-t border-border/50">
         <SheetHeader className="pb-4 border-b border-border/30">
           <SheetTitle className="font-display text-xl text-gradient flex items-center gap-2">
-            <User className="w-5 h-5 text-primary" />
-            {stylist ? "Edit Stylist" : "Add Stylist"}
+            <Mail className="w-5 h-5 text-primary" />
+            Invite Team Member
           </SheetTitle>
+          <SheetDescription className="text-muted-foreground">
+            Send an invitation to join your salon team. They'll receive login credentials via email.
+          </SheetDescription>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4 overflow-y-auto max-h-[calc(85vh-120px)] pr-1">
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4 overflow-y-auto max-h-[calc(90vh-150px)] pr-1">
+          {/* Invitation Info Card */}
+          <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <span className="font-medium text-foreground text-sm">How invitations work</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              When you invite a team member, they can sign up using the email you provide. 
+              Once registered, they'll automatically be linked to your salon and can access their own dashboard.
+            </p>
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor="name" className="text-sm text-muted-foreground">Name</Label>
+            <Label htmlFor="name" className="text-sm text-muted-foreground flex items-center gap-2">
+              <User className="w-4 h-4" />
+              Full Name
+            </Label>
             <Input
               id="name"
               value={formData.name}
@@ -121,20 +126,19 @@ export function StylistFormSheet({ open, onOpenChange, stylist, services, onSubm
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               placeholder="e.g., sarah@example.com"
+              required
               className="h-12 bg-muted/50 border-border/50 focus:border-primary/50 input-glow"
             />
-            {!stylist && formData.email && (
-              <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                <Sparkles className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-muted-foreground">
-                  They can sign up with this email to access their own stylist dashboard
-                </p>
-              </div>
-            )}
+            <p className="text-xs text-muted-foreground">
+              They'll use this email to create their account
+            </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone" className="text-sm text-muted-foreground">Phone Number (optional)</Label>
+            <Label htmlFor="phone" className="text-sm text-muted-foreground flex items-center gap-2">
+              <Phone className="w-4 h-4" />
+              Phone Number (optional)
+            </Label>
             <Input
               id="phone"
               value={formData.phone_number}
@@ -152,17 +156,6 @@ export function StylistFormSheet({ open, onOpenChange, stylist, services, onSubm
               onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
               placeholder="A short description of their expertise..."
               className="min-h-[80px] bg-muted/50 border-border/50 focus:border-primary/50 input-glow"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="avatar" className="text-sm text-muted-foreground">Avatar URL (optional)</Label>
-            <Input
-              id="avatar"
-              value={formData.avatar_url}
-              onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
-              placeholder="https://..."
-              className="h-12 bg-muted/50 border-border/50 focus:border-primary/50 input-glow"
             />
           </div>
 
@@ -194,23 +187,12 @@ export function StylistFormSheet({ open, onOpenChange, stylist, services, onSubm
             </div>
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-muted/30 rounded-xl">
-            <div>
-              <Label className="text-foreground">Active</Label>
-              <p className="text-xs text-muted-foreground">Stylist accepts new bookings</p>
-            </div>
-            <Switch
-              checked={formData.is_active}
-              onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-            />
-          </div>
-
           <Button
             type="submit"
-            disabled={submitting || !formData.name.trim()}
+            disabled={submitting || !formData.name.trim() || !formData.email.trim()}
             className="w-full h-12 btn-premium mt-6"
           >
-            {submitting ? <LoadingSpinner size="sm" /> : stylist ? "Update Stylist" : "Add Stylist"}
+            {submitting ? <LoadingSpinner size="sm" /> : "Send Invitation"}
           </Button>
         </form>
       </SheetContent>

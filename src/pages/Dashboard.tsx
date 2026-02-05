@@ -11,10 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DashboardTabs, type DashboardTab } from "@/components/salon/DashboardTabs";
 import { SalonCalendar } from "@/components/salon/SalonCalendar";
+import { EnhancedCalendar } from "@/components/salon/EnhancedCalendar";
+import { CalendarTimeline } from "@/components/salon/CalendarTimeline";
 import { DayBookingsList } from "@/components/salon/DayBookingsList";
 import { ServiceManager } from "@/components/salon/ServiceManager";
 import { StylistManager } from "@/components/salon/StylistManager";
 import { WorkingHoursManager } from "@/components/salon/WorkingHoursManager";
+import { AnalyticsDashboard } from "@/components/salon/AnalyticsDashboard";
 import { 
   Calendar, 
   Users, 
@@ -250,6 +253,24 @@ export default function Dashboard() {
             </Card>
           </div>
         );
+
+      case "calendar":
+        return (
+          <div className="space-y-4">
+            <EnhancedCalendar
+              bookingCounts={bookingCounts}
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+            />
+            <CalendarTimeline
+              date={selectedDate}
+              bookings={selectedDayBookings}
+            />
+          </div>
+        );
+
+      case "analytics":
+        return <AnalyticsDashboard salonId={salon.id} />;
 
       case "services":
         return <ServiceManager salonId={salon.id} />;

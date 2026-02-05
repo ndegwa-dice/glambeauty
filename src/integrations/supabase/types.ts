@@ -330,7 +330,10 @@ export type Database = {
           avatar_url: string | null
           bio: string | null
           created_at: string
+          email: string | null
           id: string
+          invitation_status: string | null
+          invited_at: string | null
           is_active: boolean | null
           name: string
           phone_number: string | null
@@ -342,7 +345,10 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
+          email?: string | null
           id?: string
+          invitation_status?: string | null
+          invited_at?: string | null
           is_active?: boolean | null
           name: string
           phone_number?: string | null
@@ -354,7 +360,10 @@ export type Database = {
           avatar_url?: string | null
           bio?: string | null
           created_at?: string
+          email?: string | null
           id?: string
+          invitation_status?: string | null
+          invited_at?: string | null
           is_active?: boolean | null
           name?: string
           phone_number?: string | null
