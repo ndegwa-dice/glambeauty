@@ -26,14 +26,14 @@ export function FuturisticBackground({ scrollY }: FuturisticBackgroundProps) {
           alt=""
           className="w-full h-full object-cover object-center"
           style={{
-            filter: "blur(3px)",
-            opacity: 0.5,
+            filter: "blur(2px)",
+            opacity: 0.75,
           }}
         />
       </div>
 
       {/* Gradient Overlay for text readability */}
-      <div className="absolute inset-0 bg-gradient-to-br from-background/40 via-transparent to-background/50" />
+      <div className="absolute inset-0 bg-gradient-to-br from-background/30 via-transparent to-background/40" />
 
       {/* Subtle Grid Pattern */}
       <div 
@@ -93,7 +93,7 @@ export function FuturisticBackground({ scrollY }: FuturisticBackgroundProps) {
       <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-background to-transparent" />
       
       {/* Subtle Vignette Effect */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_50%,hsl(var(--background)/0.4)_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_60%,hsl(var(--background)/0.3)_100%)]" />
     </div>
   );
 }
