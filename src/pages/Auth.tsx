@@ -102,8 +102,31 @@ export default function Auth() {
       return;
     }
 
-    // Wait a moment for auth to complete, then assign role
+    // Wait a moment for auth to complete, then check if user was auto-linked as stylist
     setTimeout(async () => {
+      // Check if user was auto-linked as a stylist via the trigger
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user) {
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userData.user.id);
+
+        const hasStylestRole = roleData?.some(r => r.role === 'stylist');
+        
+        if (hasStylestRole) {
+          // User was auto-linked as stylist via invitation
+          toast({
+            title: "Welcome to the team! 💅",
+            description: "Your stylist account has been set up. Access your dashboard now.",
+          });
+          setIsLoading(false);
+          navigate("/stylist");
+          return;
+        }
+      }
+
+      // Otherwise assign the selected role (client or salon_owner)
       await assignRole(selectedRole);
       
       toast({
