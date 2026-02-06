@@ -1,9 +1,8 @@
 import { useParallax } from "@/hooks/useParallax";
-import { ParallaxBackground } from "./ParallaxBackground";
-import { AnimatedParticles } from "./AnimatedParticles";
-import { HeroContent } from "./HeroContent";
-import { AppMockup } from "./AppMockup";
-import { FloatingCards } from "./FloatingCards";
+import { FuturisticBackground } from "./FuturisticBackground";
+import { FuturisticParticles } from "./FuturisticParticles";
+import { FuturisticHeroContent } from "./FuturisticHeroContent";
+import { NeonSalonVisual } from "./NeonSalonVisual";
 import { ScrollHint } from "./ScrollHint";
 
 export function HeroSection() {
@@ -11,22 +10,19 @@ export function HeroSection() {
 
   return (
     <section className="relative min-h-screen flex flex-col overflow-hidden">
-      {/* Background Layers */}
-      <ParallaxBackground scrollY={scrollY} />
-      <AnimatedParticles />
+      {/* Futuristic Background */}
+      <FuturisticBackground scrollY={scrollY} />
+      <FuturisticParticles />
 
       {/* Main Content */}
-      <div className="flex-1 container px-4 pt-20 pb-32 flex flex-col justify-center">
-        <div className="flex flex-col lg:flex-row items-center lg:items-start lg:justify-between gap-12 lg:gap-8">
+      <div className="flex-1 container px-4 pt-24 pb-32 flex flex-col justify-center">
+        <div className="flex flex-col lg:flex-row items-center lg:items-center lg:justify-between gap-12 lg:gap-8">
           {/* Left: Content */}
-          <HeroContent />
+          <FuturisticHeroContent />
 
-          {/* Right: App Mockup */}
-          <AppMockup scrollY={scrollY} />
+          {/* Right: Visual */}
+          <NeonSalonVisual scrollY={scrollY} />
         </div>
-
-        {/* Floating Feature Cards */}
-        <FloatingCards scrollY={scrollY} />
       </div>
 
       {/* Scroll Hint */}
