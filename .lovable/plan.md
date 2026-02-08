@@ -1,342 +1,260 @@
 
-# Full Salon Business Dashboard Suite with Stylist Login
+# Stylist Empowerment Feature Plan
 
 ## Overview
-
-This plan transforms the current salon dashboard into a comprehensive business management suite with:
-1. Enhanced dashboard with analytics, revenue tracking, and better calendar
-2. Stylist authentication system with individual login credentials
-3. Role-based access where stylists can view the salon dashboard with their assigned permissions
+Transform stylists from simple booking assignees into empowered beauty professionals with rich profiles, portfolios, social engagement features, and dedicated dashboards - similar to an Instagram-style experience for both stylists and clients.
 
 ---
 
-## Database Changes
+## Key Features
 
-### 1. Add Stylist Role Support
+### 1. Enhanced Stylist Profiles (Instagram-style)
+- **Profile Header**: Large cover photo, circular avatar with glow effect, display name, bio
+- **Stats Bar**: Total clients served, rating (stars), followers count
+- **Availability Status**: Toggle between "Available" (green), "Busy" (amber), "Away" (gray)
+- **Contact Actions**: Message button, follow/unfollow button
+- **Services Showcase**: Visual cards for each service they perform
 
-The `stylists` table already has a `user_id` column - we need to utilize this to link stylists to their auth accounts.
+### 2. Portfolio Gallery
+- Grid layout of work photos (like Instagram)
+- Before/after comparisons
+- Category tags (nails, braids, makeup, etc.)
+- Like counts on each photo
+- Tap to view full-size with details
 
-```sql
--- Add invitation tracking to stylists table
-ALTER TABLE stylists ADD COLUMN IF NOT EXISTS email TEXT;
-ALTER TABLE stylists ADD COLUMN IF NOT EXISTS invitation_status TEXT DEFAULT 'pending';
-ALTER TABLE stylists ADD COLUMN IF NOT EXISTS invited_at TIMESTAMP WITH TIME ZONE;
-```
+### 3. Social Features
+- **Follow System**: Clients can follow their favorite stylists
+- **Ratings & Reviews**: 1-5 star ratings with text reviews after completed appointments
+- **Messaging**: Direct messaging between clients and stylists
+- **Activity Feed**: Recent work, new reviews, availability changes
 
-### 2. Update RLS Policies
+### 4. Enhanced Stylist Dashboard
+- **My Profile Tab**: Edit avatar, cover photo, bio, contact info
+- **Portfolio Tab**: Upload/manage work photos, add captions/tags
+- **Bookings Tab**: View all bookings with quick status updates
+- **Followers Tab**: See who follows them, message fans
+- **Earnings Tab**: Track completed appointments and revenue
+- **Availability Toggle**: Quick busy/available status switch in header
 
-Add policies allowing stylists to view their assigned salon's data:
+### 5. Client-Side Stylist Discovery
+- **Feed View**: Scrollable stylist cards (like Instagram stories/posts)
+- **Search & Filter**: By service type, rating, availability
+- **Stylist Profiles**: Full Instagram-style profile pages
+- **Quick Book**: Book directly from stylist profile
 
-```sql
--- Stylists can view bookings for their salon
-CREATE POLICY "Stylists can view their salon bookings"
-ON public.bookings FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM stylists s 
-    WHERE s.user_id = auth.uid() 
-    AND s.salon_id = bookings.salon_id
-    AND s.is_active = true
-  )
-);
-
--- Stylists can view their own stylist record
-CREATE POLICY "Stylists can view their own record"
-ON public.stylists FOR SELECT
-USING (user_id = auth.uid());
-
--- Stylists can view salon details they belong to
-CREATE POLICY "Stylists can view their salon"
-ON public.salons FOR SELECT
-USING (
-  EXISTS (
-    SELECT 1 FROM stylists s 
-    WHERE s.user_id = auth.uid() 
-    AND s.salon_id = salons.id
-    AND s.is_active = true
-  )
-);
-```
+### 6. Salon Owner Team View
+- **Grid of Stylist Cards**: Photo, name, rating, follower count, status
+- **Performance Metrics**: Bookings this week, revenue generated, review score
+- **Invitation Status**: Pending, Accepted, Active indicators
+- **Quick Actions**: View profile, edit, send message
 
 ---
 
-## New Components
+## Database Schema Changes
 
-### 1. Enhanced Dashboard Calendar
-
-**File:** `src/components/salon/EnhancedCalendar.tsx`
-
-Features:
-- Month view option (in addition to week view)
-- Full day timeline showing all appointments as blocks
-- Drag-and-drop rescheduling (future enhancement)
-- Visual distinction between stylists (color-coded)
-- Time slots grid showing availability
+### New Tables
 
 ```text
-+--------------------------------------------------+
-|  < January 2026 >    [Week] [Month]              |
-+--------------------------------------------------+
-|  Mon   Tue   Wed   Thu   Fri   Sat   Sun         |
-|  [6]   [7]   [8]   [9]   [10]  [11]  [12]         |
-|   2     3     1     -     4     6     -           |
-|   .     .     .           .     .                 |
-+--------------------------------------------------+
-|  TIMELINE - January 8, 2026                      |
-|  09:00  [=== Jane - Gel Nails ===]               |
-|  10:00  [== Sarah - Lashes ==] [= Rose - Mani =] |
-|  11:00  ........................................  |
-|  12:00  [=== Jane - Full Set ===]                |
-+--------------------------------------------------+
+┌─────────────────────────────────────────────────────────────────────┐
+│  stylist_portfolios                                                 │
+├─────────────────────────────────────────────────────────────────────┤
+│  id (uuid, PK)                                                      │
+│  stylist_id (uuid, FK → stylists)                                   │
+│  image_url (text)                                                   │
+│  caption (text, nullable)                                           │
+│  category (text) - e.g., "nails", "braids", "makeup"                │
+│  likes_count (integer, default 0)                                   │
+│  is_before_after (boolean, default false)                           │
+│  before_image_url (text, nullable)                                  │
+│  created_at, updated_at                                             │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  stylist_reviews                                                    │
+├─────────────────────────────────────────────────────────────────────┤
+│  id (uuid, PK)                                                      │
+│  stylist_id (uuid, FK → stylists)                                   │
+│  client_user_id (uuid, FK → auth.users via RLS)                     │
+│  booking_id (uuid, FK → bookings)                                   │
+│  rating (integer, 1-5)                                              │
+│  review_text (text, nullable)                                       │
+│  created_at                                                         │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  stylist_follows                                                    │
+├─────────────────────────────────────────────────────────────────────┤
+│  id (uuid, PK)                                                      │
+│  stylist_id (uuid, FK → stylists)                                   │
+│  follower_user_id (uuid)                                            │
+│  created_at                                                         │
+│  UNIQUE(stylist_id, follower_user_id)                               │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  messages                                                           │
+├─────────────────────────────────────────────────────────────────────┤
+│  id (uuid, PK)                                                      │
+│  conversation_id (uuid)                                             │
+│  sender_user_id (uuid)                                              │
+│  recipient_user_id (uuid)                                           │
+│  message_text (text)                                                │
+│  is_read (boolean, default false)                                   │
+│  created_at                                                         │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  portfolio_likes                                                    │
+├─────────────────────────────────────────────────────────────────────┤
+│  id (uuid, PK)                                                      │
+│  portfolio_id (uuid, FK → stylist_portfolios)                       │
+│  user_id (uuid)                                                     │
+│  created_at                                                         │
+│  UNIQUE(portfolio_id, user_id)                                      │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. Analytics Dashboard Tab
+### Updates to Existing Tables
 
-**File:** `src/components/salon/AnalyticsDashboard.tsx`
+**stylists table** - Add columns:
+- `cover_image_url` (text) - Banner/cover photo
+- `availability_status` (enum: 'available', 'busy', 'away', default 'available')
+- `rating_avg` (numeric, computed/cached)
+- `rating_count` (integer, default 0)
+- `followers_count` (integer, default 0)
+- `total_clients_served` (integer, default 0)
+- `instagram_handle` (text, nullable)
+- `specialty` (text, nullable) - e.g., "Gel Extensions Specialist"
 
-Features:
-- Revenue summary (today, this week, this month)
-- Booking completion rate
-- Popular services breakdown
-- Busiest times visualization
-- Client retention metrics
+---
+
+## File Structure
 
 ```text
-+--------------------------------------------------+
-|  Revenue This Month                               |
-|  KES 45,600  +12% from last month                 |
-+--------------------------------------------------+
-|  [Today] [Week] [Month] [Year]                   |
-|                                                  |
-|  [Chart: Revenue over time]                      |
-|                                                  |
-+--------------------------------------------------+
-|  Top Services         |  Team Performance        |
-|  1. Gel Nails (32)    |  Jane: 24 bookings       |
-|  2. Lashes (28)       |  Sarah: 18 bookings      |
-|  3. Makeup (15)       |  Rose: 15 bookings       |
-+--------------------------------------------------+
-```
-
-### 3. Stylist Invitation System
-
-**File:** `src/components/salon/StylistInviteSheet.tsx`
-
-Features:
-- Email input for sending invitation
-- Auto-generate temporary password or magic link
-- Status tracking (pending, accepted, expired)
-- Re-send invitation option
-
-```text
-+--------------------------------------------------+
-|  Invite Team Member                              |
-+--------------------------------------------------+
-|  Name: [Sarah Wanjiku]                           |
-|  Email: [sarah@example.com]                      |
-|  Phone: [0712 345 678]                           |
-|                                                  |
-|  Services they can perform:                      |
-|  [x] Gel Nails                                   |
-|  [x] Manicure                                    |
-|  [ ] Lashes                                      |
-|                                                  |
-|  [Send Invitation]                               |
-+--------------------------------------------------+
-```
-
-### 4. Stylist Dashboard View
-
-**File:** `src/pages/StylistDashboard.tsx`
-
-A filtered view of the salon dashboard showing only:
-- Their assigned bookings
-- Their performance stats
-- Salon schedule (read-only)
-- Profile management
-
-### 5. Updated Dashboard Tabs
-
-**File:** `src/components/salon/DashboardTabs.tsx`
-
-Expand tabs to include:
-- **Today** - Current day overview with timeline
-- **Calendar** - Full calendar with month/week views
-- **Analytics** - Revenue and performance metrics
-- **Services** - Service management (owner only)
-- **Team** - Stylist management (owner only)
-- **Settings** - Working hours and salon settings
-
----
-
-## Updated Hooks
-
-### 1. useStylistAuth Hook
-
-**File:** `src/hooks/useStylistAuth.ts`
-
-```typescript
-// Determines if user is a stylist and fetches their salon
-interface StylistAuthReturn {
-  isStylist: boolean;
-  stylistId: string | null;
-  salonId: string | null;
-  loading: boolean;
-}
-```
-
-### 2. useSalonAnalytics Hook
-
-**File:** `src/hooks/useSalonAnalytics.ts`
-
-```typescript
-// Fetches analytics data for the salon
-interface AnalyticsData {
-  revenue: { today: number; week: number; month: number };
-  bookings: { total: number; completed: number; cancelled: number };
-  topServices: Array<{ name: string; count: number; revenue: number }>;
-  teamPerformance: Array<{ name: string; bookings: number; revenue: number }>;
-}
+src/
+├── components/
+│   ├── stylist/                          # NEW - Stylist-specific components
+│   │   ├── StylistProfileHeader.tsx      # Avatar, cover, name, stats
+│   │   ├── StylistStatsBar.tsx           # Clients, rating, followers
+│   │   ├── StylistAvailabilityToggle.tsx # Quick status switch
+│   │   ├── PortfolioGrid.tsx             # Photo grid display
+│   │   ├── PortfolioUploadSheet.tsx      # Add new work photos
+│   │   ├── PortfolioPhotoCard.tsx        # Individual photo card
+│   │   ├── StylistReviewCard.tsx         # Review display
+│   │   ├── StylistReviewForm.tsx         # Post-booking review form
+│   │   ├── FollowButton.tsx              # Follow/unfollow toggle
+│   │   ├── StylistFeedCard.tsx           # Card for discovery feed
+│   │   ├── StylistMessageSheet.tsx       # DM composer
+│   │   └── StylistServicesBadges.tsx     # Service tags/badges
+│   ├── client/
+│   │   ├── StylistFeed.tsx               # NEW - Instagram-style feed
+│   │   ├── StylistProfileSheet.tsx       # NEW - Full profile view
+│   │   └── ...existing
+│   ├── salon/
+│   │   ├── StylistCard.tsx               # UPDATED - Enhanced cards
+│   │   ├── StylistManager.tsx            # UPDATED - Grid layout
+│   │   └── StylistPerformanceCard.tsx    # NEW - Metrics card
+│   └── messages/                         # NEW - Messaging components
+│       ├── ConversationList.tsx
+│       ├── ChatThread.tsx
+│       └── MessageBubble.tsx
+├── hooks/
+│   ├── useStylistProfile.ts              # NEW - Fetch/update stylist profile
+│   ├── useStylistPortfolio.ts            # NEW - Portfolio CRUD
+│   ├── useStylistReviews.ts              # NEW - Reviews fetch/submit
+│   ├── useStylistFollows.ts              # NEW - Follow/unfollow logic
+│   ├── useMessages.ts                    # NEW - Messaging hook
+│   └── useDiscoverStylists.ts            # NEW - Feed discovery
+├── pages/
+│   ├── StylistDashboard.tsx              # UPDATED - Enhanced with new tabs
+│   └── StylistProfile.tsx                # NEW - Public profile page
+└── ...
 ```
 
 ---
 
-## Auth Flow Changes
+## Implementation Phases
 
-### Updated Sign-In Flow
+### Phase 1: Database & Core Profile (Foundation)
+1. Create storage bucket for portfolio images
+2. Add new columns to `stylists` table
+3. Create `stylist_portfolios`, `stylist_reviews`, `stylist_follows` tables
+4. Set up RLS policies for all new tables
+5. Create `useStylistProfile` hook with update capabilities
 
-```text
-User Signs In
-     |
-     v
-Check user_roles table
-     |
-     +---> salon_owner --> Dashboard (full access)
-     |
-     +---> stylist --> Check stylists table for user_id match
-     |                     |
-     |                     v
-     |                 StylistDashboard (limited access)
-     |
-     +---> client --> ClientDashboard
-```
+### Phase 2: Stylist Dashboard Enhancement
+1. Build `StylistProfileHeader` component
+2. Add `StylistAvailabilityToggle` to dashboard header
+3. Create "My Profile" tab with editable fields
+4. Build portfolio upload flow with image storage
+5. Create `PortfolioGrid` for displaying work
 
-### Stylist Onboarding Flow
+### Phase 3: Social Features
+1. Implement `FollowButton` and `useStylistFollows` hook
+2. Build review submission flow after completed bookings
+3. Create `StylistReviewCard` for displaying reviews
+4. Add ratings to stylist profiles
 
-1. Salon owner adds stylist with email
-2. System creates stylist record with email
-3. Invitation sent to stylist's email
-4. Stylist signs up using the email
-5. On signup, check if email exists in stylists table
-6. If match found, link user_id and assign "stylist" role
-7. Redirect to StylistDashboard
+### Phase 4: Client Discovery Experience
+1. Create `StylistFeed` component (scrollable cards)
+2. Build `StylistProfileSheet` for full profile view
+3. Add "Stylists" tab to client dashboard
+4. Implement search/filter by service, rating, availability
 
----
+### Phase 5: Messaging System
+1. Create `messages` table with RLS
+2. Build `ConversationList` and `ChatThread` components
+3. Enable realtime messaging with Supabase
+4. Add message notifications
 
-## File Changes Summary
-
-### New Files to Create
-
-| File | Purpose |
-|------|---------|
-| `src/components/salon/EnhancedCalendar.tsx` | Month/week view calendar with timeline |
-| `src/components/salon/CalendarTimeline.tsx` | Day timeline showing appointment blocks |
-| `src/components/salon/AnalyticsDashboard.tsx` | Revenue and performance analytics |
-| `src/components/salon/AnalyticsCard.tsx` | Reusable analytics stat card |
-| `src/components/salon/StylistInviteSheet.tsx` | Invitation form for stylists |
-| `src/pages/StylistDashboard.tsx` | Stylist-specific dashboard view |
-| `src/hooks/useStylistAuth.ts` | Hook for stylist authentication state |
-| `src/hooks/useSalonAnalytics.ts` | Hook for fetching analytics data |
-
-### Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/pages/Dashboard.tsx` | Add analytics tab, enhanced calendar, role-based rendering |
-| `src/pages/Auth.tsx` | Handle stylist invitation acceptance |
-| `src/components/salon/DashboardTabs.tsx` | Add "Analytics" and "Calendar" tabs |
-| `src/components/salon/StylistFormSheet.tsx` | Add email field and invitation option |
-| `src/components/salon/StylistManager.tsx` | Show invitation status, re-send option |
-| `src/hooks/useUserRole.ts` | Add stylist role detection |
-| `src/App.tsx` | Add StylistDashboard route |
+### Phase 6: Salon Owner View Enhancement
+1. Redesign `StylistCard` with performance metrics
+2. Add grid layout option for `StylistManager`
+3. Show aggregated team performance stats
 
 ---
 
-## Technical Details
+## Technical Considerations
 
-### Enhanced Calendar Implementation
+### Storage
+- Create `stylist-portfolios` bucket in Lovable Cloud storage
+- Public bucket with RLS for uploads (stylists can only upload to their folder)
+- Image optimization: resize on upload for thumbnails
 
-The calendar will use a custom grid-based layout:
+### Realtime
+- Enable realtime on `messages` table for instant chat
+- Enable realtime on `stylist_follows` for follower count updates
+- Enable realtime on `stylist_portfolios` for live portfolio updates
 
-```typescript
-// Calendar view modes
-type CalendarView = "week" | "month";
+### Performance
+- Cache `rating_avg`, `followers_count`, `total_clients_served` on stylists table
+- Use database triggers to update cached counts
+- Paginate portfolio and reviews (load 12 items at a time)
 
-// Timeline slot representation
-interface TimeSlot {
-  time: string; // "09:00"
-  bookings: BookingBlock[];
-}
-
-interface BookingBlock {
-  id: string;
-  stylistId: string;
-  stylistName: string;
-  stylistColor: string; // For visual distinction
-  serviceName: string;
-  clientName: string;
-  startTime: string;
-  duration: number; // in minutes
-}
-```
-
-### Stylist Color Coding
-
-Each stylist gets a unique color for calendar visualization:
-
-```typescript
-const STYLIST_COLORS = [
-  "#EC4899", // Pink
-  "#8B5CF6", // Purple  
-  "#3B82F6", // Blue
-  "#10B981", // Green
-  "#F59E0B", // Amber
-  "#EF4444", // Red
-];
-```
-
-### Analytics Calculations
-
-Revenue and stats computed from bookings table:
-
-```sql
--- Monthly revenue
-SELECT SUM(total_amount) 
-FROM bookings 
-WHERE salon_id = ? 
-  AND status = 'completed'
-  AND booking_date >= date_trunc('month', CURRENT_DATE);
-```
+### RLS Policies Summary
+- **stylist_portfolios**: Stylists can CRUD their own; anyone can view active stylists' portfolios
+- **stylist_reviews**: Clients can create (one per booking); anyone can read
+- **stylist_follows**: Authenticated users can follow/unfollow; anyone can see counts
+- **messages**: Users can only see their own conversations
 
 ---
 
-## Security Considerations
+## UI/UX Highlights
 
-1. **Role Separation**: Stylists can only view, not modify salon settings
-2. **Data Isolation**: RLS policies ensure stylists only see their salon's data
-3. **Invitation Validation**: Email must match to link stylist to auth account
-4. **Owner Permissions**: Only salon owners can invite/remove team members
+### Stylist Profile (Instagram-inspired)
+- Cover photo with gradient overlay
+- Circular avatar with glow effect and availability indicator
+- Stats bar: "127 clients • ⭐ 4.8 • 89 followers"
+- Bio with specialty tag
+- Tabbed content: Portfolio | Reviews | Services
 
----
+### Discovery Feed
+- Horizontal scroll for "Top Stylists Near You"
+- Vertical feed of recent work (portfolio posts)
+- Filter chips: All, Nails, Braids, Makeup, Bridal
 
-## Implementation Order
-
-1. **Database migrations** - Add stylist email column and RLS policies
-2. **useStylistAuth hook** - Detect stylist role and fetch salon
-3. **Enhanced Calendar** - Build month/week views with timeline
-4. **Analytics Dashboard** - Revenue and performance metrics
-5. **Stylist Invitation** - Update form with email and invitation
-6. **Auth flow updates** - Handle stylist signup linking
-7. **Stylist Dashboard** - Create limited view for stylists
-8. **Testing** - Verify role-based access and data isolation
+### Availability Status
+- Green dot + "Available" - accepting bookings
+- Amber dot + "Busy" - currently with a client
+- Gray dot + "Away" - not taking bookings today
 
