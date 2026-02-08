@@ -96,6 +96,36 @@ export type Database = {
           },
         ]
       }
+      messages: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          is_read: boolean | null
+          message_text: string
+          recipient_user_id: string
+          sender_user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message_text: string
+          recipient_user_id: string
+          sender_user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          message_text?: string
+          recipient_user_id?: string
+          sender_user_id?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -148,6 +178,35 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portfolio_likes: {
+        Row: {
+          created_at: string
+          id: string
+          portfolio_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          portfolio_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          portfolio_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portfolio_likes_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "stylist_portfolios"
             referencedColumns: ["id"]
           },
         ]
@@ -289,6 +348,127 @@ export type Database = {
           },
         ]
       }
+      stylist_follows: {
+        Row: {
+          created_at: string
+          follower_user_id: string
+          id: string
+          stylist_id: string
+        }
+        Insert: {
+          created_at?: string
+          follower_user_id: string
+          id?: string
+          stylist_id: string
+        }
+        Update: {
+          created_at?: string
+          follower_user_id?: string
+          id?: string
+          stylist_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stylist_follows_stylist_id_fkey"
+            columns: ["stylist_id"]
+            isOneToOne: false
+            referencedRelation: "stylists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stylist_portfolios: {
+        Row: {
+          before_image_url: string | null
+          caption: string | null
+          category: string | null
+          created_at: string
+          id: string
+          image_url: string
+          is_before_after: boolean | null
+          likes_count: number | null
+          stylist_id: string
+          updated_at: string
+        }
+        Insert: {
+          before_image_url?: string | null
+          caption?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          image_url: string
+          is_before_after?: boolean | null
+          likes_count?: number | null
+          stylist_id: string
+          updated_at?: string
+        }
+        Update: {
+          before_image_url?: string | null
+          caption?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string
+          is_before_after?: boolean | null
+          likes_count?: number | null
+          stylist_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stylist_portfolios_stylist_id_fkey"
+            columns: ["stylist_id"]
+            isOneToOne: false
+            referencedRelation: "stylists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stylist_reviews: {
+        Row: {
+          booking_id: string | null
+          client_user_id: string
+          created_at: string
+          id: string
+          rating: number
+          review_text: string | null
+          stylist_id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          client_user_id: string
+          created_at?: string
+          id?: string
+          rating: number
+          review_text?: string | null
+          stylist_id: string
+        }
+        Update: {
+          booking_id?: string | null
+          client_user_id?: string
+          created_at?: string
+          id?: string
+          rating?: number
+          review_text?: string | null
+          stylist_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stylist_reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stylist_reviews_stylist_id_fkey"
+            columns: ["stylist_id"]
+            isOneToOne: false
+            referencedRelation: "stylists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stylist_services: {
         Row: {
           created_at: string
@@ -327,47 +507,77 @@ export type Database = {
       }
       stylists: {
         Row: {
+          availability_status:
+            | Database["public"]["Enums"]["availability_status"]
+            | null
           avatar_url: string | null
           bio: string | null
+          cover_image_url: string | null
           created_at: string
           email: string | null
+          followers_count: number | null
           id: string
+          instagram_handle: string | null
           invitation_status: string | null
           invited_at: string | null
           is_active: boolean | null
           name: string
           phone_number: string | null
+          rating_avg: number | null
+          rating_count: number | null
           salon_id: string
+          specialty: string | null
+          total_clients_served: number | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
+          availability_status?:
+            | Database["public"]["Enums"]["availability_status"]
+            | null
           avatar_url?: string | null
           bio?: string | null
+          cover_image_url?: string | null
           created_at?: string
           email?: string | null
+          followers_count?: number | null
           id?: string
+          instagram_handle?: string | null
           invitation_status?: string | null
           invited_at?: string | null
           is_active?: boolean | null
           name: string
           phone_number?: string | null
+          rating_avg?: number | null
+          rating_count?: number | null
           salon_id: string
+          specialty?: string | null
+          total_clients_served?: number | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
+          availability_status?:
+            | Database["public"]["Enums"]["availability_status"]
+            | null
           avatar_url?: string | null
           bio?: string | null
+          cover_image_url?: string | null
           created_at?: string
           email?: string | null
+          followers_count?: number | null
           id?: string
+          instagram_handle?: string | null
           invitation_status?: string | null
           invited_at?: string | null
           is_active?: boolean | null
           name?: string
           phone_number?: string | null
+          rating_avg?: number | null
+          rating_count?: number | null
           salon_id?: string
+          specialty?: string | null
+          total_clients_served?: number | null
           updated_at?: string
           user_id?: string | null
         }
@@ -462,6 +672,7 @@ export type Database = {
     }
     Enums: {
       app_role: "salon_owner" | "stylist" | "client"
+      availability_status: "available" | "busy" | "away"
       booking_status:
         | "pending"
         | "confirmed"
@@ -602,6 +813,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["salon_owner", "stylist", "client"],
+      availability_status: ["available", "busy", "away"],
       booking_status: [
         "pending",
         "confirmed",

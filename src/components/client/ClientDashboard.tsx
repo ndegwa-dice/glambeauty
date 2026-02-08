@@ -8,12 +8,13 @@ import { DashboardHeader } from "./DashboardHeader";
 import { ClientCalendar } from "./ClientCalendar";
 import { ClientBookingCard } from "./ClientBookingCard";
 import { SalonDiscovery } from "./SalonDiscovery";
+import { StylistFeed } from "./StylistFeed";
 import { BookingSheet } from "./BookingSheet";
 import { CategoryFilter } from "./CategoryFilter";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { Sparkles, Plus } from "lucide-react";
-
+import { Sparkles, Plus, Store, Users } from "lucide-react";
 export function ClientDashboard() {
   const { toast } = useToast();
   const { bookings, upcomingBookings, loading: bookingsLoading } = useClientBookings();
@@ -141,23 +142,42 @@ export function ClientDashboard() {
             )}
           </section>
 
-          {/* Discover Salons */}
+          {/* Discover Section with Tabs */}
           <section>
             <h2 className="font-display text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-primary" />
-              Discover Beauty Spots
+              Discover
             </h2>
             
-            {/* Category Filter */}
-            <div className="mb-4">
-              <CategoryFilter selected={selectedCategory} onSelect={setSelectedCategory} />
-            </div>
+            <Tabs defaultValue="salons" className="w-full">
+              <TabsList className="w-full bg-muted/30 border border-border/50 mb-4">
+                <TabsTrigger value="salons" className="flex-1 gap-1.5">
+                  <Store className="w-4 h-4" />
+                  Salons
+                </TabsTrigger>
+                <TabsTrigger value="stylists" className="flex-1 gap-1.5">
+                  <Users className="w-4 h-4" />
+                  Stylists
+                </TabsTrigger>
+              </TabsList>
 
-            <SalonDiscovery
-              salons={salons}
-              loading={salonsLoading}
-              onSelectSalon={handleSelectSalon}
-            />
+              <TabsContent value="salons" className="mt-0">
+                {/* Category Filter */}
+                <div className="mb-4">
+                  <CategoryFilter selected={selectedCategory} onSelect={setSelectedCategory} />
+                </div>
+
+                <SalonDiscovery
+                  salons={salons}
+                  loading={salonsLoading}
+                  onSelectSalon={handleSelectSalon}
+                />
+              </TabsContent>
+
+              <TabsContent value="stylists" className="mt-0">
+                <StylistFeed />
+              </TabsContent>
+            </Tabs>
           </section>
         </div>
       </div>

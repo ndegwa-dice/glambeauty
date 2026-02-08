@@ -1,48 +1,72 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { startOfWeek, format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useStylistAuth } from "@/hooks/useStylistAuth";
 import { useSalonBookings } from "@/hooks/useSalonBookings";
-import { useSalonAnalytics } from "@/hooks/useSalonAnalytics";
+import { useStylistProfile } from "@/hooks/useStylistProfile";
+import { useStylistPortfolio } from "@/hooks/useStylistPortfolio";
 import type { Database } from "@/integrations/supabase/types";
 
 type BookingStatus = Database["public"]["Enums"]["booking_status"];
+
 import { MobileLayout, PageHeader } from "@/components/layout/MobileLayout";
 import { LoadingScreen } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EnhancedCalendar } from "@/components/salon/EnhancedCalendar";
 import { CalendarTimeline } from "@/components/salon/CalendarTimeline";
-import { AnalyticsCard } from "@/components/salon/AnalyticsCard";
-import { LogOut, Calendar, CheckCircle, DollarSign, User } from "lucide-react";
+import { StylistProfileHeader } from "@/components/stylist/StylistProfileHeader";
+import { StylistAvailabilityToggle } from "@/components/stylist/StylistAvailabilityToggle";
+import { PortfolioGrid } from "@/components/stylist/PortfolioGrid";
+import { PortfolioUploadSheet } from "@/components/stylist/PortfolioUploadSheet";
+import { LogOut, Calendar, CheckCircle, Clock, Image, User } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 export default function StylistDashboard() {
   const { user, loading: authLoading, signOut } = useAuth();
-  const { isStylist, stylistProfile, loading: stylistLoading } = useStylistAuth();
+  const { isStylist, stylistProfile: basicProfile, loading: stylistLoading } = useStylistAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
 
-  const salonId = stylistProfile?.salonId || "";
+  const salonId = basicProfile?.salonId || "";
+  const stylistId = basicProfile?.id || "";
   
+  // Enhanced profile hook
+  const { 
+    profile, 
+    loading: profileLoading, 
+    updateProfile, 
+    updateAvailability, 
+    uploadAvatar, 
+    uploadCover 
+  } = useStylistProfile(stylistId);
+
+  // Portfolio hook
+  const {
+    items: portfolioItems,
+    loading: portfolioLoading,
+    uploadPortfolioImage,
+    deleteItem: deletePortfolioItem,
+    likeItem,
+    unlikeItem,
+  } = useStylistPortfolio(stylistId);
+
   const { bookingsByDate, bookingCounts, loading: bookingsLoading } = useSalonBookings({
     salonId,
     weekStart,
   });
 
-  const { revenue, bookings } = useSalonAnalytics(salonId);
-
   // Filter bookings for this stylist only
   const myBookingsByDate = Object.fromEntries(
     Object.entries(bookingsByDate).map(([date, dateBookings]) => [
       date,
-      dateBookings.filter(b => b.stylist_id === stylistProfile?.id)
+      dateBookings.filter(b => b.stylist_id === stylistId)
     ])
   );
 
@@ -66,7 +90,6 @@ export default function StylistDashboard() {
 
   useEffect(() => {
     if (!stylistLoading && user && !isStylist) {
-      // Not a stylist, redirect based on role
       navigate("/client");
     }
   }, [stylistLoading, user, isStylist, navigate]);
@@ -93,11 +116,11 @@ export default function StylistDashboard() {
     }
   };
 
-  if (authLoading || stylistLoading || bookingsLoading) {
+  if (authLoading || stylistLoading || profileLoading) {
     return <LoadingScreen message="Loading your dashboard..." />;
   }
 
-  if (!stylistProfile) {
+  if (!profile) {
     return <LoadingScreen message="Setting up your profile..." />;
   }
 
@@ -113,22 +136,29 @@ export default function StylistDashboard() {
     <MobileLayout
       header={
         <PageHeader 
-          title={stylistProfile.salonName}
-          subtitle={`Welcome, ${stylistProfile.name}`}
+          title={profile.salon_name || basicProfile?.salonName || ""}
+          subtitle={`Welcome, ${profile.name}`}
           rightAction={
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={handleSignOut}
-              className="touch-target text-muted-foreground hover:text-foreground"
-            >
-              <LogOut className="w-5 h-5" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <StylistAvailabilityToggle
+                status={profile.availability_status}
+                onStatusChange={updateAvailability}
+                compact
+              />
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={handleSignOut}
+                className="touch-target text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="w-5 h-5" />
+              </Button>
+            </div>
           }
         />
       }
     >
-      <div className="p-4 space-y-4 relative">
+      <div className="relative">
         {/* Ambient glow */}
         <div className="fixed inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-primary/5 blur-[100px]" />
@@ -136,13 +166,22 @@ export default function StylistDashboard() {
         </div>
 
         <Tabs defaultValue="schedule" className="relative z-10">
-          <TabsList className="w-full bg-muted/30 border border-border/50">
-            <TabsTrigger value="schedule" className="flex-1">Schedule</TabsTrigger>
-            <TabsTrigger value="stats" className="flex-1">My Stats</TabsTrigger>
-            <TabsTrigger value="profile" className="flex-1">Profile</TabsTrigger>
+          <TabsList className="w-full bg-muted/30 border border-border/50 mx-4 mt-4" style={{ width: 'calc(100% - 32px)' }}>
+            <TabsTrigger value="schedule" className="flex-1 gap-1">
+              <Calendar className="w-4 h-4" />
+              Schedule
+            </TabsTrigger>
+            <TabsTrigger value="portfolio" className="flex-1 gap-1">
+              <Image className="w-4 h-4" />
+              Portfolio
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="flex-1 gap-1">
+              <User className="w-4 h-4" />
+              Profile
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="schedule" className="mt-4 space-y-4">
+          <TabsContent value="schedule" className="mt-4 px-4 space-y-4 pb-24">
             {/* Quick Stats */}
             <div className="grid grid-cols-3 gap-3">
               <Card className="card-glass">
@@ -171,8 +210,8 @@ export default function StylistDashboard() {
               
               <Card className="card-glass">
                 <CardContent className="p-4 text-center">
-                  <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center mx-auto mb-2">
-                    <DollarSign className="w-5 h-5 text-secondary" />
+                  <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center mx-auto mb-2">
+                    <Clock className="w-5 h-5 text-warning" />
                   </div>
                   <p className="font-display text-2xl font-bold text-foreground">
                     {allMyBookings.filter((b) => b.status === "pending").length}
@@ -229,42 +268,70 @@ export default function StylistDashboard() {
             )}
           </TabsContent>
 
-          <TabsContent value="stats" className="mt-4 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <AnalyticsCard
-                title="This Week"
-                value={allMyBookings.length}
-                subtitle="Total bookings"
-                icon={Calendar}
-                iconColor="text-primary"
-              />
-              <AnalyticsCard
-                title="Completed"
-                value={allMyBookings.filter(b => b.status === "completed").length}
-                subtitle="This week"
-                icon={CheckCircle}
-                iconColor="text-success"
-              />
+          <TabsContent value="portfolio" className="mt-0 pb-24">
+            {/* Portfolio Header with Upload */}
+            <div className="px-4 py-4 flex items-center justify-between border-b border-border/50">
+              <div>
+                <h2 className="font-display font-semibold text-foreground">My Work</h2>
+                <p className="text-xs text-muted-foreground">{portfolioItems.length} photos</p>
+              </div>
+              <PortfolioUploadSheet onUpload={uploadPortfolioImage} />
+            </div>
+
+            {/* Portfolio Grid */}
+            <div className="p-1">
+              {portfolioLoading ? (
+                <div className="flex justify-center py-12">
+                  <LoadingScreen message="Loading portfolio..." />
+                </div>
+              ) : (
+                <PortfolioGrid
+                  items={portfolioItems}
+                  isOwner
+                  onLike={likeItem}
+                  onUnlike={unlikeItem}
+                  onDelete={deletePortfolioItem}
+                  emptyMessage="Show off your work! Add your first photo"
+                />
+              )}
             </div>
           </TabsContent>
 
-          <TabsContent value="profile" className="mt-4 space-y-4">
-            <Card className="card-glass">
-              <CardContent className="p-6 text-center space-y-4">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center mx-auto text-primary-foreground text-2xl font-bold">
-                  {stylistProfile.name.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h3 className="font-display text-xl font-bold text-foreground">
-                    {stylistProfile.name}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    {stylistProfile.salonName}
-                  </p>
-                </div>
-                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <User className="w-4 h-4" />
-                  Stylist
+          <TabsContent value="profile" className="mt-0 pb-24">
+            {/* Profile Header */}
+            <Card className="card-glass mx-4 mt-4 overflow-hidden">
+              <StylistProfileHeader
+                profile={profile}
+                isOwner
+                onAvatarUpload={uploadAvatar}
+                onCoverUpload={uploadCover}
+                onAvailabilityChange={updateAvailability}
+              />
+            </Card>
+
+            {/* Profile Stats Card */}
+            <Card className="card-glass mx-4 mt-4">
+              <CardContent className="p-4">
+                <h3 className="font-display font-semibold text-foreground mb-4">
+                  Your Stats
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-3 rounded-lg bg-muted/50">
+                    <p className="text-2xl font-bold text-foreground">{profile.total_clients_served}</p>
+                    <p className="text-xs text-muted-foreground">Clients Served</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-muted/50">
+                    <p className="text-2xl font-bold text-foreground">{profile.rating_avg.toFixed(1)}</p>
+                    <p className="text-xs text-muted-foreground">Average Rating</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-muted/50">
+                    <p className="text-2xl font-bold text-foreground">{profile.followers_count}</p>
+                    <p className="text-xs text-muted-foreground">Followers</p>
+                  </div>
+                  <div className="text-center p-3 rounded-lg bg-muted/50">
+                    <p className="text-2xl font-bold text-foreground">{portfolioItems.length}</p>
+                    <p className="text-xs text-muted-foreground">Portfolio Photos</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
