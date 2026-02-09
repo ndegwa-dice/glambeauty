@@ -1,32 +1,50 @@
-import { useState } from "react";
+import { useState, useRef, useMemo } from "react";
 import { format, isSameDay } from "date-fns";
 import { useClientBookings } from "@/hooks/useClientBookings";
 import { useDiscoverSalons, DiscoverSalon, SalonCategory } from "@/hooks/useDiscoverSalons";
+import { useFeaturedSalons, FeaturedSalon } from "@/hooks/useFeaturedSalons";
+import { useParallaxScroll } from "@/hooks/useParallaxScroll";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardHeader } from "./DashboardHeader";
 import { ClientCalendar } from "./ClientCalendar";
 import { ClientBookingCard } from "./ClientBookingCard";
-import { SalonDiscovery } from "./SalonDiscovery";
+import { DiscoverSection } from "./DiscoverSection";
 import { StylistFeed } from "./StylistFeed";
 import { BookingSheet } from "./BookingSheet";
-import { CategoryFilter } from "./CategoryFilter";
+import { SalonFeedSheet } from "./SalonFeedSheet";
+import { NotificationBell } from "./NotificationBell";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Sparkles, Plus, Store, Users } from "lucide-react";
+
 export function ClientDashboard() {
   const { toast } = useToast();
   const { bookings, upcomingBookings, loading: bookingsLoading } = useClientBookings();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const parallax = useParallaxScroll(scrollContainerRef);
 
   const [selectedCategory, setSelectedCategory] = useState<SalonCategory>("all");
   const { salons, loading: salonsLoading } = useDiscoverSalons(selectedCategory);
 
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
-  const [selectedSalon, setSelectedSalon] = useState<DiscoverSalon | null>(null);
+  const [selectedSalon, setSelectedSalon] = useState<DiscoverSalon | FeaturedSalon | null>(null);
   const [bookingSheetOpen, setBookingSheetOpen] = useState(false);
+  const [salonFeedOpen, setSalonFeedOpen] = useState(false);
 
-  const handleSelectSalon = (salon: DiscoverSalon) => {
+  // Get next upcoming booking for countdown
+  const nextBooking = useMemo(() => {
+    if (upcomingBookings.length === 0) return null;
+    const sorted = [...upcomingBookings].sort((a, b) => {
+      const dateA = new Date(`${a.booking_date}T${a.start_time}`);
+      const dateB = new Date(`${b.booking_date}T${b.start_time}`);
+      return dateA.getTime() - dateB.getTime();
+    });
+    return sorted[0] || null;
+  }, [upcomingBookings]);
+
+  const handleSelectSalon = (salon: DiscoverSalon | FeaturedSalon) => {
     setSelectedSalon(salon);
     setBookingSheetOpen(true);
   };
@@ -67,16 +85,27 @@ export function ClientDashboard() {
 
   return (
     <div className="flex-1 flex flex-col pb-safe-bottom">
-      {/* Ambient Glow Background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+      {/* Ambient Glow Background with Parallax */}
+      <div 
+        className="fixed inset-0 pointer-events-none overflow-hidden"
+        style={{ transform: `translateY(${parallax.backgroundOffset}px)` }}
+      >
         <div className="absolute top-20 right-0 w-80 h-80 rounded-full bg-primary/10 blur-[120px]" />
         <div className="absolute bottom-40 left-0 w-64 h-64 rounded-full bg-secondary/10 blur-[100px]" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-primary/5 blur-[150px]" />
       </div>
 
-      <div className="relative z-10 flex-1 overflow-y-auto scrollbar-dark">
-        {/* Header */}
-        <DashboardHeader />
+      <div 
+        ref={scrollContainerRef}
+        className="relative z-10 flex-1 overflow-y-auto scrollbar-dark"
+      >
+        {/* Header with Notification Bell */}
+        <div className="relative">
+          <DashboardHeader />
+          <div className="absolute top-4 right-4">
+            <NotificationBell />
+          </div>
+        </div>
 
         <div className="px-4 space-y-6 pb-24">
           {/* Calendar */}
@@ -118,12 +147,7 @@ export function ClientDashboard() {
                 </p>
                 <Button
                   className="btn-premium"
-                  onClick={() => {
-                    if (salons.length > 0) {
-                      setSelectedSalon(salons[0]);
-                      setBookingSheetOpen(true);
-                    }
-                  }}
+                  onClick={() => setSalonFeedOpen(true)}
                 >
                   <Sparkles className="w-4 h-4 mr-2" />
                   Browse Salons
@@ -162,15 +186,12 @@ export function ClientDashboard() {
               </TabsList>
 
               <TabsContent value="salons" className="mt-0">
-                {/* Category Filter */}
-                <div className="mb-4">
-                  <CategoryFilter selected={selectedCategory} onSelect={setSelectedCategory} />
-                </div>
-
-                <SalonDiscovery
-                  salons={salons}
-                  loading={salonsLoading}
+                <DiscoverSection
+                  selectedCategory={selectedCategory}
+                  onCategoryChange={setSelectedCategory}
                   onSelectSalon={handleSelectSalon}
+                  nextBooking={nextBooking}
+                  parallaxOffset={parallax.scrollY}
                 />
               </TabsContent>
 
@@ -182,19 +203,24 @@ export function ClientDashboard() {
         </div>
       </div>
 
-      {/* Floating Action Button */}
+      {/* Floating Action Button - Opens ALL Salons Feed */}
       <Button
         size="lg"
         className="fixed bottom-6 right-4 h-14 w-14 rounded-full btn-premium pulse-glow z-20 shadow-2xl"
-        onClick={() => {
-          if (salons.length > 0) {
-            setSelectedSalon(salons[0]);
-            setBookingSheetOpen(true);
-          }
-        }}
+        onClick={() => setSalonFeedOpen(true)}
       >
         <Plus className="w-6 h-6" />
       </Button>
+
+      {/* Salon Feed Sheet (All Salons) */}
+      <SalonFeedSheet
+        open={salonFeedOpen}
+        onOpenChange={setSalonFeedOpen}
+        onSelectSalon={(salon) => {
+          handleSelectSalon(salon);
+          setSalonFeedOpen(false);
+        }}
+      />
 
       {/* Booking Sheet */}
       <BookingSheet

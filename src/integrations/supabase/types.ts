@@ -243,6 +243,7 @@ export type Database = {
       }
       salons: {
         Row: {
+          ad_tier: string | null
           address: string | null
           category: string | null
           city: string | null
@@ -250,8 +251,11 @@ export type Database = {
           created_at: string
           description: string | null
           email: string | null
+          featured_image_url: string | null
+          featured_until: string | null
           id: string
           is_active: boolean | null
+          is_featured: boolean | null
           logo_url: string | null
           name: string
           owner_id: string
@@ -261,6 +265,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ad_tier?: string | null
           address?: string | null
           category?: string | null
           city?: string | null
@@ -268,8 +273,11 @@ export type Database = {
           created_at?: string
           description?: string | null
           email?: string | null
+          featured_image_url?: string | null
+          featured_until?: string | null
           id?: string
           is_active?: boolean | null
+          is_featured?: boolean | null
           logo_url?: string | null
           name: string
           owner_id: string
@@ -279,6 +287,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ad_tier?: string | null
           address?: string | null
           category?: string | null
           city?: string | null
@@ -286,8 +295,11 @@ export type Database = {
           created_at?: string
           description?: string | null
           email?: string | null
+          featured_image_url?: string | null
+          featured_until?: string | null
           id?: string
           is_active?: boolean | null
+          is_featured?: boolean | null
           logo_url?: string | null
           name?: string
           owner_id?: string
@@ -587,6 +599,92 @@ export type Database = {
             columns: ["salon_id"]
             isOneToOne: false
             referencedRelation: "salons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_calendar_sync: {
+        Row: {
+          access_token: string | null
+          calendar_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          last_synced_at: string | null
+          provider: string
+          refresh_token: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          calendar_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          provider?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          calendar_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          provider?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_notifications: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          emoji: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_notifications_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
         ]
