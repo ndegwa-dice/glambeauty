@@ -20,10 +20,11 @@ import { StylistProfileHeader } from "@/components/stylist/StylistProfileHeader"
 import { StylistAvailabilityToggle } from "@/components/stylist/StylistAvailabilityToggle";
 import { PortfolioGrid } from "@/components/stylist/PortfolioGrid";
 import { PortfolioUploadSheet } from "@/components/stylist/PortfolioUploadSheet";
-import { LogOut, Calendar, CheckCircle, Clock, Image, User } from "lucide-react";
+import { LogOut, Calendar, CheckCircle, Clock, Image, User, Building2, Users } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
 
 export default function StylistDashboard() {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -33,6 +34,7 @@ export default function StylistDashboard() {
   
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [salonSelectedDate, setSalonSelectedDate] = useState<Date>(new Date());
 
   const salonId = basicProfile?.salonId || "";
   const stylistId = basicProfile?.id || "";
@@ -57,9 +59,17 @@ export default function StylistDashboard() {
     unlikeItem,
   } = useStylistPortfolio(stylistId);
 
+  // My bookings (filtered to this stylist)
   const { bookingsByDate, bookingCounts, loading: bookingsLoading } = useSalonBookings({
     salonId,
     weekStart,
+  });
+
+  // Salon-wide bookings (same hook, unfiltered for Salon View)
+  const salonWeekStart = startOfWeek(salonSelectedDate, { weekStartsOn: 1 });
+  const { bookingsByDate: salonBookingsByDate, bookingCounts: salonBookingCounts } = useSalonBookings({
+    salonId,
+    weekStart: salonWeekStart,
   });
 
   // Filter bookings for this stylist only
@@ -127,10 +137,18 @@ export default function StylistDashboard() {
   const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
   const selectedDayBookings = myBookingsByDate[selectedDateStr] || [];
   
+  // Salon view date
+  const salonSelectedDateStr = format(salonSelectedDate, "yyyy-MM-dd");
+  const salonSelectedDayBookings = salonBookingsByDate[salonSelectedDateStr] || [];
+  
   // Calculate my stats
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayBookings = myBookingsByDate[todayStr] || [];
   const allMyBookings = Object.values(myBookingsByDate).flat();
+  
+  // Salon-wide stats
+  const salonTodayBookings = salonBookingsByDate[todayStr] || [];
+  const allSalonBookings = Object.values(salonBookingsByDate).flat();
 
   return (
     <MobileLayout
@@ -169,18 +187,23 @@ export default function StylistDashboard() {
           <TabsList className="w-full bg-muted/30 border border-border/50 mx-4 mt-4" style={{ width: 'calc(100% - 32px)' }}>
             <TabsTrigger value="schedule" className="flex-1 gap-1">
               <Calendar className="w-4 h-4" />
-              Schedule
+              <span className="hidden sm:inline">Schedule</span>
+            </TabsTrigger>
+            <TabsTrigger value="salon" className="flex-1 gap-1">
+              <Building2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Salon</span>
             </TabsTrigger>
             <TabsTrigger value="portfolio" className="flex-1 gap-1">
               <Image className="w-4 h-4" />
-              Portfolio
+              <span className="hidden sm:inline">Portfolio</span>
             </TabsTrigger>
             <TabsTrigger value="profile" className="flex-1 gap-1">
               <User className="w-4 h-4" />
-              Profile
+              <span className="hidden sm:inline">Profile</span>
             </TabsTrigger>
           </TabsList>
 
+          {/* MY SCHEDULE TAB */}
           <TabsContent value="schedule" className="mt-4 px-4 space-y-4 pb-24">
             {/* Quick Stats */}
             <div className="grid grid-cols-3 gap-3">
@@ -268,8 +291,110 @@ export default function StylistDashboard() {
             )}
           </TabsContent>
 
+          {/* SALON VIEW TAB */}
+          <TabsContent value="salon" className="mt-4 px-4 space-y-4 pb-24">
+            <div className="flex items-center gap-2 mb-2">
+              <Building2 className="w-5 h-5 text-secondary" />
+              <h2 className="font-display font-semibold text-foreground">
+                {profile.salon_name || basicProfile?.salonName}
+              </h2>
+              <Badge variant="outline" className="text-2xs bg-secondary/10 border-secondary/30 text-secondary">
+                Read Only
+              </Badge>
+            </div>
+
+            {/* Salon-wide Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              <Card className="card-glass">
+                <CardContent className="p-4 text-center">
+                  <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center mx-auto mb-2">
+                    <Users className="w-5 h-5 text-secondary" />
+                  </div>
+                  <p className="font-display text-2xl font-bold text-foreground">
+                    {salonTodayBookings.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Today (All)</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="card-glass">
+                <CardContent className="p-4 text-center">
+                  <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center mx-auto mb-2">
+                    <CheckCircle className="w-5 h-5 text-success" />
+                  </div>
+                  <p className="font-display text-2xl font-bold text-foreground">
+                    {allSalonBookings.filter(b => b.status === "confirmed").length}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Confirmed</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="card-glass">
+                <CardContent className="p-4 text-center">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-2">
+                    <Calendar className="w-5 h-5 text-primary" />
+                  </div>
+                  <p className="font-display text-2xl font-bold text-foreground">
+                    {allSalonBookings.length}
+                  </p>
+                  <p className="text-xs text-muted-foreground">This Week</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Salon Calendar */}
+            <EnhancedCalendar
+              bookingCounts={salonBookingCounts}
+              selectedDate={salonSelectedDate}
+              onSelectDate={setSalonSelectedDate}
+            />
+
+            {/* Salon Timeline */}
+            <CalendarTimeline
+              date={salonSelectedDate}
+              bookings={salonSelectedDayBookings}
+            />
+
+            {/* Salon Day Bookings (read-only) */}
+            {salonSelectedDayBookings.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="font-display font-semibold text-foreground">
+                  All Appointments — {format(salonSelectedDate, "MMM d")}
+                </h3>
+                {salonSelectedDayBookings.map((booking) => (
+                  <Card key={booking.id} className={`card-glass ${booking.stylist_id === stylistId ? 'border-primary/30' : ''}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-foreground">{booking.client_name}</p>
+                            {booking.stylist_id === stylistId && (
+                              <Badge variant="outline" className="text-2xs bg-primary/10 border-primary/30 text-primary">
+                                You
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">{booking.service_name}</p>
+                          {booking.stylist_name && booking.stylist_id !== stylistId && (
+                            <p className="text-xs text-muted-foreground">with {booking.stylist_name}</p>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm text-primary">{booking.start_time.slice(0, 5)}</span>
+                          <Badge variant="outline" className="text-2xs ml-2">
+                            {booking.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* PORTFOLIO TAB */}
           <TabsContent value="portfolio" className="mt-0 pb-24">
-            {/* Portfolio Header with Upload */}
             <div className="px-4 py-4 flex items-center justify-between border-b border-border/50">
               <div>
                 <h2 className="font-display font-semibold text-foreground">My Work</h2>
@@ -278,7 +403,6 @@ export default function StylistDashboard() {
               <PortfolioUploadSheet onUpload={uploadPortfolioImage} />
             </div>
 
-            {/* Portfolio Grid */}
             <div className="p-1">
               {portfolioLoading ? (
                 <div className="flex justify-center py-12">
@@ -297,8 +421,8 @@ export default function StylistDashboard() {
             </div>
           </TabsContent>
 
+          {/* PROFILE TAB */}
           <TabsContent value="profile" className="mt-0 pb-24">
-            {/* Profile Header */}
             <Card className="card-glass mx-4 mt-4 overflow-hidden">
               <StylistProfileHeader
                 profile={profile}
@@ -309,7 +433,6 @@ export default function StylistDashboard() {
               />
             </Card>
 
-            {/* Profile Stats Card */}
             <Card className="card-glass mx-4 mt-4">
               <CardContent className="p-4">
                 <h3 className="font-display font-semibold text-foreground mb-4">
