@@ -276,7 +276,7 @@ export default function Dashboard() {
         return <ServiceManager salonId={salon.id} />;
 
       case "team":
-        return <StylistManager salonId={salon.id} />;
+        return <StylistManager salonId={salon.id} salonName={salon.name} />;
 
       case "settings":
         return (

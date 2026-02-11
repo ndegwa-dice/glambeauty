@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { RoleSelector } from "@/components/auth/RoleSelector";
-import { Scissors, Sparkles } from "lucide-react";
+import { Scissors, Sparkles, Mail } from "lucide-react";
 
 type Role = "client" | "salon_owner";
 
@@ -22,6 +22,12 @@ export default function Auth() {
   const { primaryRole, assignRole, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+
+  // Invite detection
+  const isInvite = searchParams.get("invite") === "true";
+  const inviteEmail = searchParams.get("email") || "";
+  const defaultTab = isInvite ? "signup" : "signin";
 
   // Redirect based on role after login
   useEffect(() => {
@@ -56,7 +62,7 @@ export default function Auth() {
       return;
     }
 
-    // Immediately fetch role and navigate - don't wait for state cascades
+    // Immediately fetch role and navigate
     if (data?.user) {
       const { data: roleData } = await supabase
         .from("user_roles")
@@ -104,7 +110,6 @@ export default function Auth() {
 
     // Wait a moment for auth to complete, then check if user was auto-linked as stylist
     setTimeout(async () => {
-      // Check if user was auto-linked as a stylist via the trigger
       const { data: userData } = await supabase.auth.getUser();
       if (userData?.user) {
         const { data: roleData } = await supabase
@@ -112,10 +117,9 @@ export default function Auth() {
           .select("role")
           .eq("user_id", userData.user.id);
 
-        const hasStylestRole = roleData?.some(r => r.role === 'stylist');
+        const hasStylistRole = roleData?.some(r => r.role === 'stylist');
         
-        if (hasStylestRole) {
-          // User was auto-linked as stylist via invitation
+        if (hasStylistRole) {
           toast({
             title: "Welcome to the team! 💅",
             description: "Your stylist account has been set up. Access your dashboard now.",
@@ -126,7 +130,7 @@ export default function Auth() {
         }
       }
 
-      // Otherwise assign the selected role (client or salon_owner)
+      // Otherwise assign the selected role
       await assignRole(selectedRole);
       
       toast({
@@ -171,9 +175,22 @@ export default function Auth() {
           </p>
         </div>
 
+        {/* Invite Banner */}
+        {isInvite && (
+          <div className="p-4 rounded-xl bg-primary/10 border border-primary/30 text-center space-y-2">
+            <div className="flex items-center justify-center gap-2">
+              <Mail className="w-5 h-5 text-primary" />
+              <span className="font-display font-semibold text-foreground">You're Invited! 💅</span>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Create your account to join the salon team and access your stylist dashboard.
+            </p>
+          </div>
+        )}
+
         {/* Auth Card */}
         <Card className="card-glass border-border/50">
-          <Tabs defaultValue="signin" className="w-full">
+          <Tabs defaultValue={defaultTab} className="w-full">
             <CardHeader className="pb-4">
               <TabsList className="grid w-full grid-cols-2 bg-muted/50">
                 <TabsTrigger value="signin" className="data-[state=active]:bg-card data-[state=active]:text-foreground">Sign In</TabsTrigger>
@@ -191,6 +208,7 @@ export default function Auth() {
                       name="email"
                       type="email"
                       placeholder="you@example.com"
+                      defaultValue={inviteEmail}
                       required
                       className="h-12 bg-muted/50 border-border/50 focus:border-primary/50 input-glow"
                     />
@@ -218,14 +236,16 @@ export default function Auth() {
               </TabsContent>
 
               <TabsContent value="signup" className="mt-0 space-y-6">
-                {/* Role Selection */}
-                <div className="space-y-3">
-                  <Label className="text-sm text-muted-foreground">I am a...</Label>
-                  <RoleSelector
-                    selectedRole={selectedRole}
-                    onRoleChange={setSelectedRole}
-                  />
-                </div>
+                {/* Role Selection - hidden for invites since they'll be auto-assigned stylist */}
+                {!isInvite && (
+                  <div className="space-y-3">
+                    <Label className="text-sm text-muted-foreground">I am a...</Label>
+                    <RoleSelector
+                      selectedRole={selectedRole}
+                      onRoleChange={setSelectedRole}
+                    />
+                  </div>
+                )}
 
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
@@ -246,9 +266,16 @@ export default function Auth() {
                       name="email"
                       type="email"
                       placeholder="you@example.com"
+                      defaultValue={inviteEmail}
+                      readOnly={!!isInvite}
                       required
-                      className="h-12 bg-muted/50 border-border/50 focus:border-primary/50 input-glow"
+                      className={`h-12 bg-muted/50 border-border/50 focus:border-primary/50 input-glow ${isInvite ? 'opacity-70 cursor-not-allowed' : ''}`}
                     />
+                    {isInvite && (
+                      <p className="text-xs text-muted-foreground">
+                        Use this email to be automatically linked to your salon
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password" className="text-sm text-muted-foreground">Password</Label>
@@ -268,7 +295,7 @@ export default function Auth() {
                     className="w-full touch-target"
                     disabled={isLoading}
                   >
-                    {isLoading ? <LoadingSpinner size="sm" /> : "Create Account"}
+                    {isLoading ? <LoadingSpinner size="sm" /> : isInvite ? "Join Team" : "Create Account"}
                   </Button>
                 </form>
               </TabsContent>

@@ -1,4 +1,4 @@
-import { MoreHorizontal, Pencil, Trash2, User, Mail, Check, Clock } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Mail, Check, Clock, Send, RefreshCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -16,15 +17,17 @@ import type { Tables } from "@/integrations/supabase/types";
 type Service = Tables<"services">;
 
 interface StylistCardProps {
-  stylist: StylistWithServices & { email?: string; invitation_status?: string };
+  stylist: StylistWithServices;
   services: Service[];
   onEdit: (stylist: StylistWithServices) => void;
   onDelete: (stylistId: string) => void;
+  onResendInvite?: (stylist: StylistWithServices) => void;
 }
 
-export function StylistCard({ stylist, services, onEdit, onDelete }: StylistCardProps) {
+export function StylistCard({ stylist, services, onEdit, onDelete, onResendInvite }: StylistCardProps) {
   const assignedServices = services.filter((s) => stylist.service_ids.includes(s.id));
-  const invitationStatus = (stylist as any).invitation_status;
+  const invitationStatus = stylist.invitation_status;
+  const canResend = invitationStatus === "pending" || invitationStatus === "sent";
 
   return (
     <Card className={cn(
@@ -43,7 +46,7 @@ export function StylistCard({ stylist, services, onEdit, onDelete }: StylistCard
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <h3 className="font-display font-semibold text-foreground text-gradient truncate">
                 {stylist.name}
               </h3>
@@ -52,24 +55,30 @@ export function StylistCard({ stylist, services, onEdit, onDelete }: StylistCard
                   Inactive
                 </Badge>
               )}
-              {invitationStatus === "pending" && (
+              {(invitationStatus === "pending" || invitationStatus === "sent") && (
                 <Badge variant="outline" className="text-2xs bg-warning/10 border-warning/30 text-warning">
                   <Clock className="w-3 h-3 mr-1" />
-                  Pending
+                  {invitationStatus === "sent" ? "Invite Sent" : "Pending"}
                 </Badge>
               )}
-              {invitationStatus === "accepted" && stylist.user_id && (
+              {invitationStatus === "accepted" && (
                 <Badge variant="outline" className="text-2xs bg-success/10 border-success/30 text-success">
                   <Check className="w-3 h-3 mr-1" />
-                  Linked
+                  Joined
+                </Badge>
+              )}
+              {invitationStatus === "active" && stylist.user_id && (
+                <Badge variant="outline" className="text-2xs bg-primary/10 border-primary/30 text-primary">
+                  <Check className="w-3 h-3 mr-1" />
+                  Active
                 </Badge>
               )}
             </div>
 
-            {(stylist as any).email && (
+            {stylist.email && (
               <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                 <Mail className="w-3 h-3" />
-                {(stylist as any).email}
+                {stylist.email}
               </div>
             )}
 
@@ -115,6 +124,16 @@ export function StylistCard({ stylist, services, onEdit, onDelete }: StylistCard
                 <Pencil className="w-4 h-4 mr-2" />
                 Edit
               </DropdownMenuItem>
+              {canResend && onResendInvite && (
+                <DropdownMenuItem 
+                  onClick={() => onResendInvite(stylist)}
+                  className="cursor-pointer"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Resend Invite
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onClick={() => onDelete(stylist.id)}
                 className="text-destructive cursor-pointer"
