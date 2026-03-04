@@ -25,8 +25,20 @@ export function ServiceCard({ service, onEdit, onDelete }: ServiceCardProps) {
       "card-glass overflow-hidden transition-all duration-300",
       service.is_active ? "shimmer-glass" : "opacity-60"
     )}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-3">
+      <CardContent className="p-0">
+        <div className="flex items-start gap-0">
+          {/* Service Image */}
+          {(service as any).image_url && (
+            <div className="w-20 h-full shrink-0 overflow-hidden rounded-l-xl">
+              <img
+                src={(service as any).image_url}
+                alt={service.name}
+                className="w-full h-full object-cover min-h-[90px]"
+              />
+            </div>
+          )}
+          
+          <div className="flex-1 flex items-start justify-between gap-3 p-4">
           {/* Service Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
@@ -88,6 +100,7 @@ export function ServiceCard({ service, onEdit, onDelete }: ServiceCardProps) {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          </div>
         </div>
       </CardContent>
     </Card>

@@ -17,6 +17,7 @@ import { DayBookingsList } from "@/components/salon/DayBookingsList";
 import { ServiceManager } from "@/components/salon/ServiceManager";
 import { StylistManager } from "@/components/salon/StylistManager";
 import { WorkingHoursManager } from "@/components/salon/WorkingHoursManager";
+import { SalonBrandManager } from "@/components/salon/SalonBrandManager";
 import { AnalyticsDashboard } from "@/components/salon/AnalyticsDashboard";
 import { 
   Calendar, 
@@ -35,6 +36,8 @@ interface Salon {
   name: string;
   slug: string;
   is_active: boolean;
+  logo_url: string | null;
+  cover_image_url: string | null;
 }
 
 export default function Dashboard() {
@@ -280,7 +283,18 @@ export default function Dashboard() {
 
       case "settings":
         return (
-          <div className="space-y-4">
+          <div className="space-y-6">
+            <SalonBrandManager
+              salonId={salon.id}
+              salonName={salon.name}
+              logoUrl={salon.logo_url}
+              coverImageUrl={salon.cover_image_url}
+              onUpdate={() => {
+                // Refetch salon data
+                supabase.from("salons").select("*").eq("owner_id", user!.id).single()
+                  .then(({ data }) => { if (data) setSalon(data); });
+              }}
+            />
             <WorkingHoursManager salonId={salon.id} />
           </div>
         );

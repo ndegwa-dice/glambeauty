@@ -15,8 +15,19 @@ export function ServiceCard({ service, onSelect }: ServiceCardProps) {
       className="card-glass cursor-pointer hover:border-primary/30 transition-all hover:scale-[1.01] active:scale-[0.99]"
       onClick={onSelect}
     >
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between">
+      <CardContent className="p-0">
+        <div className="flex items-center">
+          {/* Service Image */}
+          {(service as any).image_url && (
+            <div className="w-16 shrink-0 overflow-hidden rounded-l-xl">
+              <img
+                src={(service as any).image_url}
+                alt={service.name}
+                className="w-full h-full object-cover min-h-[72px]"
+              />
+            </div>
+          )}
+          <div className="flex items-center justify-between flex-1 p-4">
           <div className="flex-1 min-w-0">
             <h3 className="font-display font-semibold text-foreground truncate">
               {service.name}
@@ -47,6 +58,7 @@ export function ServiceCard({ service, onSelect }: ServiceCardProps) {
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
               <ArrowRight className="w-4 h-4 text-primary" />
             </div>
+          </div>
           </div>
         </div>
       </CardContent>

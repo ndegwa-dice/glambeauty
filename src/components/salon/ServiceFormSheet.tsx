@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -11,7 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Camera, X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Service = Tables<"services">;
@@ -20,6 +22,7 @@ interface ServiceFormSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   service?: Service | null;
+  salonId?: string;
   onSubmit: (data: ServiceFormData) => Promise<void>;
 }
 
@@ -30,10 +33,14 @@ export interface ServiceFormData {
   price: number;
   deposit_amount: number;
   is_active: boolean;
+  image_url?: string | null;
 }
 
-export function ServiceFormSheet({ open, onOpenChange, service, onSubmit }: ServiceFormSheetProps) {
+export function ServiceFormSheet({ open, onOpenChange, service, salonId, onSubmit }: ServiceFormSheetProps) {
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<ServiceFormData>({
     name: "",
     description: "",
@@ -41,6 +48,7 @@ export function ServiceFormSheet({ open, onOpenChange, service, onSubmit }: Serv
     price: 0,
     deposit_amount: 0,
     is_active: true,
+    image_url: null,
   });
 
   useEffect(() => {
@@ -52,6 +60,7 @@ export function ServiceFormSheet({ open, onOpenChange, service, onSubmit }: Serv
         price: service.price,
         deposit_amount: service.deposit_amount,
         is_active: service.is_active ?? true,
+        image_url: (service as any).image_url || null,
       });
     } else {
       setFormData({
@@ -61,9 +70,33 @@ export function ServiceFormSheet({ open, onOpenChange, service, onSubmit }: Serv
         price: 0,
         deposit_amount: 0,
         is_active: true,
+        image_url: null,
       });
     }
   }, [service, open]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !salonId) return;
+    setUploadingImage(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const filePath = `${salonId}/service-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+      setFormData(prev => ({ ...prev, image_url: publicUrl }));
+      toast({ title: "Image uploaded! 📸" });
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,7 +108,7 @@ export function ServiceFormSheet({ open, onOpenChange, service, onSubmit }: Serv
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[80vh] rounded-t-3xl bg-background border-t border-border/50">
+      <SheetContent side="bottom" className="h-[85vh] rounded-t-3xl bg-background border-t border-border/50">
         <SheetHeader className="pb-4 border-b border-border/30">
           <SheetTitle className="font-display text-xl text-gradient flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
@@ -83,7 +116,51 @@ export function ServiceFormSheet({ open, onOpenChange, service, onSubmit }: Serv
           </SheetTitle>
         </SheetHeader>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4 overflow-y-auto max-h-[calc(80vh-120px)]">
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4 overflow-y-auto max-h-[calc(85vh-120px)] pb-4">
+          {/* Service Image */}
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Service Image (optional)</Label>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+            {formData.image_url ? (
+              <div className="relative w-full aspect-[16/9] rounded-xl overflow-hidden bg-muted/30 border border-border/50">
+                <img src={formData.image_url} alt="Service" className="w-full h-full object-cover" />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-2 right-2 h-7 w-7 bg-background/80 backdrop-blur-sm rounded-full"
+                  onClick={() => setFormData(prev => ({ ...prev, image_url: null }))}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute bottom-2 right-2 bg-background/80 backdrop-blur-sm text-xs"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Camera className="w-3 h-3 mr-1" />
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <div
+                className="w-full aspect-[16/9] rounded-xl border-2 border-dashed border-border/50 bg-muted/20 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/30 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadingImage ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <>
+                    <Camera className="w-8 h-8 text-muted-foreground/40" />
+                    <span className="text-xs text-muted-foreground">Tap to add a photo</span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="name" className="text-sm text-muted-foreground">Service Name</Label>
             <Input
