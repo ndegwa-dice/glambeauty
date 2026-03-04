@@ -137,6 +137,7 @@ export function ServiceManager({ salonId }: ServiceManagerProps) {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         service={editingService}
+        salonId={salonId}
         onSubmit={handleSubmit}
       />
     </div>
