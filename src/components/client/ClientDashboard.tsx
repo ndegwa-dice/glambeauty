@@ -14,26 +14,26 @@ import { StylistFeed } from "./StylistFeed";
 import { BookingSheet } from "./BookingSheet";
 import { SalonFeedSheet } from "./SalonFeedSheet";
 import { NotificationBell } from "./NotificationBell";
+import { QueenStats } from "./QueenStats";
+import { BookingHistory } from "./BookingHistory";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { Sparkles, Plus, Store, Users } from "lucide-react";
+import { Sparkles, Plus, Store, Users, Crown, History } from "lucide-react";
 
 export function ClientDashboard() {
   const { toast } = useToast();
-  const { bookings, upcomingBookings, loading: bookingsLoading } = useClientBookings();
+  const { bookings, upcomingBookings, pastBookings, loading: bookingsLoading } = useClientBookings();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const parallax = useParallaxScroll(scrollContainerRef);
 
   const [selectedCategory, setSelectedCategory] = useState<SalonCategory>("all");
-  const { salons, loading: salonsLoading } = useDiscoverSalons(selectedCategory);
-
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [selectedSalon, setSelectedSalon] = useState<DiscoverSalon | FeaturedSalon | null>(null);
   const [bookingSheetOpen, setBookingSheetOpen] = useState(false);
   const [salonFeedOpen, setSalonFeedOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("home");
 
-  // Get next upcoming booking for countdown
   const nextBooking = useMemo(() => {
     if (upcomingBookings.length === 0) return null;
     const sorted = [...upcomingBookings].sort((a, b) => {
@@ -56,21 +56,12 @@ export function ClientDashboard() {
       .eq("id", bookingId);
 
     if (error) {
-      toast({
-        variant: "destructive",
-        title: "Failed to cancel",
-        description: error.message,
-      });
+      toast({ variant: "destructive", title: "Failed to cancel", description: error.message });
       return;
     }
-
-    toast({
-      title: "Booking cancelled",
-      description: "Your appointment has been cancelled.",
-    });
+    toast({ title: "Booking cancelled", description: "Your appointment has been cancelled." });
   };
 
-  // Filter bookings by selected date
   const filteredBookings = selectedDate
     ? upcomingBookings.filter((b) => isSameDay(new Date(b.booking_date), selectedDate))
     : upcomingBookings;
@@ -85,21 +76,17 @@ export function ClientDashboard() {
 
   return (
     <div className="flex-1 flex flex-col pb-safe-bottom">
-      {/* Ambient Glow Background with Parallax */}
+      {/* Ambient Glow */}
       <div 
         className="fixed inset-0 pointer-events-none overflow-hidden"
         style={{ transform: `translateY(${parallax.backgroundOffset}px)` }}
       >
         <div className="absolute top-20 right-0 w-80 h-80 rounded-full bg-primary/10 blur-[120px]" />
         <div className="absolute bottom-40 left-0 w-64 h-64 rounded-full bg-secondary/10 blur-[100px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-primary/5 blur-[150px]" />
       </div>
 
-      <div 
-        ref={scrollContainerRef}
-        className="relative z-10 flex-1 overflow-y-auto scrollbar-dark"
-      >
-        {/* Header with Notification Bell */}
+      <div ref={scrollContainerRef} className="relative z-10 flex-1 overflow-y-auto scrollbar-dark">
+        {/* Header */}
         <div className="relative">
           <DashboardHeader />
           <div className="absolute top-4 right-4">
@@ -107,103 +94,141 @@ export function ClientDashboard() {
           </div>
         </div>
 
-        <div className="px-4 space-y-6 pb-24">
-          {/* Calendar */}
-          <section>
-            <h2 className="font-display text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              Your Beauty Calendar
-            </h2>
-            <ClientCalendar
-              bookings={bookings}
-              selectedDate={selectedDate}
-              onSelectDate={setSelectedDate}
-            />
-          </section>
+        {/* Main Navigation Tabs */}
+        <div className="px-4 pb-24">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="w-full bg-muted/30 border border-border/50 mb-5">
+              <TabsTrigger value="home" className="flex-1 gap-1.5 text-xs">
+                <Sparkles className="w-3.5 h-3.5" />
+                Home
+              </TabsTrigger>
+              <TabsTrigger value="queen" className="flex-1 gap-1.5 text-xs">
+                <Crown className="w-3.5 h-3.5" />
+                My Stats
+              </TabsTrigger>
+              <TabsTrigger value="history" className="flex-1 gap-1.5 text-xs">
+                <History className="w-3.5 h-3.5" />
+                History
+              </TabsTrigger>
+              <TabsTrigger value="discover" className="flex-1 gap-1.5 text-xs">
+                <Store className="w-3.5 h-3.5" />
+                Discover
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Upcoming Appointments */}
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-display text-lg font-semibold text-foreground">
-                {selectedDate && !isSameDay(selectedDate, new Date())
-                  ? `Appointments on ${format(selectedDate, "MMM d")}`
-                  : "Upcoming Appointments"}
-              </h2>
-              <span className="text-sm text-muted-foreground">
-                {filteredBookings.length} {filteredBookings.length === 1 ? "apt" : "apts"}
-              </span>
-            </div>
-
-            {filteredBookings.length === 0 ? (
-              <div className="card-glass p-8 text-center">
-                <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center mx-auto mb-4 glow-barbie">
-                  <Sparkles className="w-8 h-8" />
-                </div>
-                <h3 className="font-display font-semibold text-foreground mb-2">
-                  No appointments yet, queen! 💅
-                </h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Treat yourself to something beautiful today
-                </p>
-                <Button
-                  className="btn-premium"
-                  onClick={() => setSalonFeedOpen(true)}
-                >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Browse Salons
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredBookings.map((booking) => (
-                  <ClientBookingCard
-                    key={booking.id}
-                    booking={booking}
-                    onCancel={handleCancelBooking}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* Discover Section with Tabs */}
-          <section>
-            <h2 className="font-display text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              Discover
-            </h2>
-            
-            <Tabs defaultValue="salons" className="w-full">
-              <TabsList className="w-full bg-muted/30 border border-border/50 mb-4">
-                <TabsTrigger value="salons" className="flex-1 gap-1.5">
-                  <Store className="w-4 h-4" />
-                  Salons
-                </TabsTrigger>
-                <TabsTrigger value="stylists" className="flex-1 gap-1.5">
-                  <Users className="w-4 h-4" />
-                  Stylists
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="salons" className="mt-0">
-                <DiscoverSection
-                  selectedCategory={selectedCategory}
-                  onCategoryChange={setSelectedCategory}
-                  onSelectSalon={handleSelectSalon}
-                  nextBooking={nextBooking}
-                  parallaxOffset={parallax.scrollY}
+            {/* HOME TAB */}
+            <TabsContent value="home" className="mt-0 space-y-6">
+              {/* Calendar */}
+              <section>
+                <h2 className="font-display text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  Your Beauty Calendar
+                </h2>
+                <ClientCalendar
+                  bookings={bookings}
+                  selectedDate={selectedDate}
+                  onSelectDate={setSelectedDate}
                 />
-              </TabsContent>
+              </section>
 
-              <TabsContent value="stylists" className="mt-0">
-                <StylistFeed />
-              </TabsContent>
-            </Tabs>
-          </section>
+              {/* Upcoming */}
+              <section>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="font-display text-lg font-semibold text-foreground">
+                    {selectedDate && !isSameDay(selectedDate, new Date())
+                      ? `Appointments on ${format(selectedDate, "MMM d")}`
+                      : "Upcoming Appointments"}
+                  </h2>
+                  <span className="text-sm text-muted-foreground">
+                    {filteredBookings.length} {filteredBookings.length === 1 ? "apt" : "apts"}
+                  </span>
+                </div>
+
+                {filteredBookings.length === 0 ? (
+                  <div className="card-glass p-8 text-center">
+                    <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center mx-auto mb-4 glow-barbie">
+                      <Sparkles className="w-8 h-8" />
+                    </div>
+                    <h3 className="font-display font-semibold text-foreground mb-2">
+                      No appointments yet, queen! 💅
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Treat yourself to something beautiful today
+                    </p>
+                    <Button className="btn-premium" onClick={() => setSalonFeedOpen(true)}>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Browse Salons
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredBookings.map((booking) => (
+                      <ClientBookingCard key={booking.id} booking={booking} onCancel={handleCancelBooking} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </TabsContent>
+
+            {/* QUEEN STATS TAB */}
+            <TabsContent value="queen" className="mt-0">
+              <QueenStats 
+                bookings={bookings} 
+                upcomingBookings={upcomingBookings} 
+                pastBookings={pastBookings} 
+              />
+            </TabsContent>
+
+            {/* HISTORY TAB */}
+            <TabsContent value="history" className="mt-0">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <History className="w-5 h-5 text-primary" />
+                  <h2 className="font-display text-lg font-semibold text-foreground">
+                    Beauty Journey
+                  </h2>
+                  <span className="text-sm text-muted-foreground ml-auto">
+                    {pastBookings.length} visits
+                  </span>
+                </div>
+                <BookingHistory pastBookings={pastBookings} />
+              </div>
+            </TabsContent>
+
+            {/* DISCOVER TAB */}
+            <TabsContent value="discover" className="mt-0 space-y-6">
+              <Tabs defaultValue="salons" className="w-full">
+                <TabsList className="w-full bg-muted/30 border border-border/50 mb-4">
+                  <TabsTrigger value="salons" className="flex-1 gap-1.5">
+                    <Store className="w-4 h-4" />
+                    Salons
+                  </TabsTrigger>
+                  <TabsTrigger value="stylists" className="flex-1 gap-1.5">
+                    <Users className="w-4 h-4" />
+                    Stylists
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="salons" className="mt-0">
+                  <DiscoverSection
+                    selectedCategory={selectedCategory}
+                    onCategoryChange={setSelectedCategory}
+                    onSelectSalon={handleSelectSalon}
+                    nextBooking={nextBooking}
+                    parallaxOffset={parallax.scrollY}
+                  />
+                </TabsContent>
+
+                <TabsContent value="stylists" className="mt-0">
+                  <StylistFeed />
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
 
-      {/* Floating Action Button - Opens ALL Salons Feed */}
+      {/* FAB */}
       <Button
         size="lg"
         className="fixed bottom-6 right-4 h-14 w-14 rounded-full btn-premium pulse-glow z-20 shadow-2xl"
@@ -212,7 +237,6 @@ export function ClientDashboard() {
         <Plus className="w-6 h-6" />
       </Button>
 
-      {/* Salon Feed Sheet (All Salons) */}
       <SalonFeedSheet
         open={salonFeedOpen}
         onOpenChange={setSalonFeedOpen}
@@ -222,7 +246,6 @@ export function ClientDashboard() {
         }}
       />
 
-      {/* Booking Sheet */}
       <BookingSheet
         salon={selectedSalon}
         open={bookingSheetOpen}
