@@ -65,7 +65,9 @@ export function useUserRole(): UseUserRoleReturn {
     return roles.includes(role);
   };
 
-  const primaryRole = roles.includes("salon_owner")
+  const primaryRole = roles.includes("admin")
+    ? "admin"
+    : roles.includes("salon_owner")
     ? "salon_owner"
     : roles.includes("stylist")
     ? "stylist"

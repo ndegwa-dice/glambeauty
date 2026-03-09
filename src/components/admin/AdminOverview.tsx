@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Building2, Users, CalendarCheck, DollarSign, UserCheck, Clock, CheckCircle2, TrendingUp } from "lucide-react";
 
-const kpiCards = [
+const kpiCards: Array<{ key: string; label: string; icon: any; color: string; isCurrency?: boolean }> = [
   { key: "totalSalons", label: "Total Salons", icon: Building2, color: "text-primary" },
   { key: "totalClients", label: "Total Clients", icon: Users, color: "text-accent-foreground" },
   { key: "totalStylists", label: "Active Stylists", icon: UserCheck, color: "text-secondary-foreground" },
@@ -12,7 +12,7 @@ const kpiCards = [
   { key: "pendingBookings", label: "Pending", icon: TrendingUp, color: "text-muted-foreground" },
   { key: "completedBookings", label: "Completed", icon: CheckCircle2, color: "text-primary" },
   { key: "totalRevenue", label: "Total Revenue", icon: DollarSign, color: "text-primary", isCurrency: true },
-] as const;
+];
 
 export function AdminOverview() {
   const { stats, loading } = useAdminStats();

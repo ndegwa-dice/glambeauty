@@ -119,6 +119,9 @@ export function ClientDashboard() {
 
             {/* HOME TAB */}
             <TabsContent value="home" className="mt-0 space-y-6">
+              {/* Broadcasts */}
+              <BroadcastFeed />
+
               {/* Calendar */}
               <section>
                 <h2 className="font-display text-lg font-semibold text-foreground mb-3 flex items-center gap-2">
