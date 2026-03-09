@@ -96,6 +96,36 @@ export type Database = {
           },
         ]
       }
+      broadcasts: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          message: string
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message: string
+          title: string
+          type?: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message?: string
+          title?: string
+          type?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           conversation_id: string
