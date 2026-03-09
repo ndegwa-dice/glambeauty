@@ -16,6 +16,7 @@ import { SalonFeedSheet } from "./SalonFeedSheet";
 import { NotificationBell } from "./NotificationBell";
 import { QueenStats } from "./QueenStats";
 import { BookingHistory } from "./BookingHistory";
+import { BroadcastFeed } from "./BroadcastFeed";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -118,6 +119,9 @@ export function ClientDashboard() {
 
             {/* HOME TAB */}
             <TabsContent value="home" className="mt-0 space-y-6">
+              {/* Broadcasts */}
+              <BroadcastFeed />
+
               {/* Calendar */}
               <section>
                 <h2 className="font-display text-lg font-semibold text-foreground mb-3 flex items-center gap-2">

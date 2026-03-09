@@ -96,6 +96,36 @@ export type Database = {
           },
         ]
       }
+      broadcasts: {
+        Row: {
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          message: string
+          title: string
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message: string
+          title: string
+          type?: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          message?: string
+          title?: string
+          type?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           conversation_id: string
@@ -772,7 +802,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "salon_owner" | "stylist" | "client"
+      app_role: "salon_owner" | "stylist" | "client" | "admin"
       availability_status: "available" | "busy" | "away"
       booking_status:
         | "pending"
@@ -913,7 +943,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["salon_owner", "stylist", "client"],
+      app_role: ["salon_owner", "stylist", "client", "admin"],
       availability_status: ["available", "busy", "away"],
       booking_status: [
         "pending",

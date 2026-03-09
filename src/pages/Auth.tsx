@@ -32,7 +32,9 @@ export default function Auth() {
   // Redirect based on role after login
   useEffect(() => {
     if (user && !roleLoading && primaryRole) {
-      if (primaryRole === "salon_owner") {
+      if (primaryRole === "admin") {
+        navigate("/admin");
+      } else if (primaryRole === "salon_owner") {
         navigate("/dashboard");
       } else if (primaryRole === "stylist") {
         navigate("/stylist");
@@ -77,7 +79,9 @@ export default function Auth() {
         description: "You have signed in successfully.",
       });
 
-      if (role === "salon_owner") {
+      if (role === "admin") {
+        navigate("/admin");
+      } else if (role === "salon_owner") {
         navigate("/dashboard");
       } else if (role === "stylist") {
         navigate("/stylist");
