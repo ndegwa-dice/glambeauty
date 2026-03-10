@@ -11,6 +11,7 @@ export interface ClientBooking {
   total_amount: number;
   deposit_amount: number;
   notes: string | null;
+  salon_id: string;
   salon_name: string;
   salon_address: string | null;
   salon_logo_url: string | null;
