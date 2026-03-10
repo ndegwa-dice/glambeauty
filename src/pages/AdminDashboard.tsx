@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAdminInsights } from "@/hooks/useAdminInsights";
+import { useDisputes } from "@/hooks/useDisputes";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { AdminOverview } from "@/components/admin/AdminOverview";
 import { AdminInsightsFeed } from "@/components/admin/AdminInsightsFeed";
@@ -12,14 +14,16 @@ import { AdminSalonHeatMap } from "@/components/admin/AdminSalonHeatMap";
 import { AdminSalonsList } from "@/components/admin/AdminSalonsList";
 import { AdminClientsList } from "@/components/admin/AdminClientsList";
 import { AdminBookingsList } from "@/components/admin/AdminBookingsList";
+import { AdminDisputesList } from "@/components/admin/AdminDisputesList";
 import { BroadcastManager } from "@/components/admin/BroadcastManager";
-import { Shield, Building2, Users, CalendarCheck, Megaphone, LogOut, Zap, Loader2 } from "lucide-react";
+import { Shield, Building2, Users, CalendarCheck, Megaphone, LogOut, Zap, Loader2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
   const { hasRole, loading } = useUserRole();
   const { generateInsights } = useAdminInsights();
+  const { openCount } = useDisputes();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [generating, setGenerating] = useState(false);
@@ -121,6 +125,13 @@ export default function AdminDashboard() {
               <CalendarCheck className="w-3.5 h-3.5" />
               Bookings
             </TabsTrigger>
+            <TabsTrigger value="disputes" className="gap-1.5 relative">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              Disputes
+              {openCount > 0 && (
+                <Badge className="ml-1 h-5 min-w-[20px] px-1 text-[10px] bg-destructive text-destructive-foreground">{openCount}</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="broadcasts" className="gap-1.5">
               <Megaphone className="w-3.5 h-3.5" />
               Broadcasts
@@ -129,6 +140,7 @@ export default function AdminDashboard() {
           <TabsContent value="salons"><AdminSalonsList /></TabsContent>
           <TabsContent value="clients"><AdminClientsList /></TabsContent>
           <TabsContent value="bookings"><AdminBookingsList /></TabsContent>
+          <TabsContent value="disputes"><AdminDisputesList /></TabsContent>
           <TabsContent value="broadcasts"><BroadcastManager /></TabsContent>
         </Tabs>
       </div>

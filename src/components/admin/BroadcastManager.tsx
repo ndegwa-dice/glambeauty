@@ -26,6 +26,12 @@ const typeEmoji: Record<string, string> = {
   promo: "🎉",
 };
 
+const audienceLabels: Record<string, string> = {
+  all: "Everyone",
+  clients: "Clients Only",
+  salons: "Salons Only",
+};
+
 export function BroadcastManager() {
   const { broadcasts, loading, createBroadcast, updateBroadcast, deleteBroadcast } = useBroadcasts();
   const { toast } = useToast();
@@ -35,11 +41,13 @@ export function BroadcastManager() {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [type, setType] = useState("update");
+  const [audience, setAudience] = useState("all");
 
   const resetForm = () => {
     setTitle("");
     setMessage("");
     setType("update");
+    setAudience("all");
     setEditing(null);
   };
 
@@ -49,6 +57,7 @@ export function BroadcastManager() {
       setTitle(broadcast.title);
       setMessage(broadcast.message);
       setType(broadcast.type);
+      setAudience((broadcast as any).audience || "all");
     } else {
       resetForm();
     }
@@ -59,19 +68,19 @@ export function BroadcastManager() {
     if (!title.trim() || !message.trim()) return;
 
     if (editing) {
-      const { error } = await updateBroadcast(editing.id, { title, message, type });
+      const { error } = await updateBroadcast(editing.id, { title, message, type, audience } as any);
       if (error) {
         toast({ variant: "destructive", title: "Error", description: error.message });
         return;
       }
       toast({ title: "Broadcast updated" });
     } else {
-      const { error } = await createBroadcast({ title, message, type });
+      const { error } = await createBroadcast({ title, message, type, audience } as any);
       if (error) {
         toast({ variant: "destructive", title: "Error", description: error.message });
         return;
       }
-      toast({ title: "Broadcast sent! 📢", description: "All users will see this." });
+      toast({ title: "Broadcast sent! 📢", description: `Sent to ${audienceLabels[audience]}.` });
     }
     setSheetOpen(false);
     resetForm();
@@ -93,7 +102,7 @@ export function BroadcastManager() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-display text-xl font-bold text-foreground">Broadcasts</h2>
-          <p className="text-sm text-muted-foreground">Send announcements to all app users</p>
+          <p className="text-sm text-muted-foreground">Send targeted announcements</p>
         </div>
         <Button onClick={() => handleOpen()} className="gap-2">
           <Plus className="w-4 h-4" />
@@ -111,6 +120,7 @@ export function BroadcastManager() {
                     <span>{typeEmoji[b.type] || "📢"}</span>
                     <h3 className="font-semibold text-foreground truncate">{b.title}</h3>
                     <Badge className={`text-xs ${typeColors[b.type] || ""}`}>{b.type}</Badge>
+                    <Badge variant="outline" className="text-xs">{audienceLabels[(b as any).audience || "all"]}</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground line-clamp-2">{b.message}</p>
                   <p className="text-xs text-muted-foreground mt-2">
@@ -153,18 +163,29 @@ export function BroadcastManager() {
               <Label>Message</Label>
               <Textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Tell your users..." rows={3} className="bg-muted/50 border-border/50" />
             </div>
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <Select value={type} onValueChange={setType}>
-                <SelectTrigger className="bg-muted/50 border-border/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="update">📢 Update</SelectItem>
-                  <SelectItem value="alert">🚨 Alert</SelectItem>
-                  <SelectItem value="promo">🎉 Promo</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={type} onValueChange={setType}>
+                  <SelectTrigger className="bg-muted/50 border-border/50"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="update">📢 Update</SelectItem>
+                    <SelectItem value="alert">🚨 Alert</SelectItem>
+                    <SelectItem value="promo">🎉 Promo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Audience</Label>
+                <Select value={audience} onValueChange={setAudience}>
+                  <SelectTrigger className="bg-muted/50 border-border/50"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">👥 Everyone</SelectItem>
+                    <SelectItem value="clients">💅 Clients Only</SelectItem>
+                    <SelectItem value="salons">💇 Salons Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <Button onClick={handleSave} className="w-full" disabled={!title.trim() || !message.trim()}>
               {editing ? "Save Changes" : "Send Broadcast"}
