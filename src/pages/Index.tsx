@@ -1,5 +1,5 @@
 import { HeroSection } from "@/components/hero/HeroSection";
-import { Calendar, CreditCard, Sparkles, Zap, Shield, Clock } from "lucide-react";
+import { Calendar, CreditCard, Sparkles, Zap, Shield, Clock, Lock } from "lucide-react";
 import { GlamosLogo } from "@/components/hero/GlamosLogo";
 
 export default function Index() {
