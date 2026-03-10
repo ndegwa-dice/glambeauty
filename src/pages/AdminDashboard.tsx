@@ -1,27 +1,48 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useAdminInsights } from "@/hooks/useAdminInsights";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { AdminOverview } from "@/components/admin/AdminOverview";
+import { AdminInsightsFeed } from "@/components/admin/AdminInsightsFeed";
+import { AdminSalonHeatMap } from "@/components/admin/AdminSalonHeatMap";
 import { AdminSalonsList } from "@/components/admin/AdminSalonsList";
 import { AdminClientsList } from "@/components/admin/AdminClientsList";
 import { AdminBookingsList } from "@/components/admin/AdminBookingsList";
 import { BroadcastManager } from "@/components/admin/BroadcastManager";
-import { Shield, BarChart3, Building2, Users, CalendarCheck, Megaphone, LogOut } from "lucide-react";
+import { Shield, Building2, Users, CalendarCheck, Megaphone, LogOut, Zap, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
   const { hasRole, loading } = useUserRole();
+  const { generateInsights } = useAdminInsights();
+  const { toast } = useToast();
   const navigate = useNavigate();
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     if (!loading && (!user || !hasRole("admin"))) {
       navigate("/auth");
     }
   }, [user, loading, hasRole, navigate]);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const result = await generateInsights();
+      toast({
+        title: result?.generated > 0 ? `${result.generated} insights generated` : "No new insights",
+        description: result?.generated > 0 ? "Check the intelligence feed above." : "Platform is stable — no anomalies detected.",
+      });
+    } catch {
+      toast({ variant: "destructive", title: "Failed to generate insights" });
+    }
+    setGenerating(false);
+  };
 
   if (loading) {
     return (
@@ -43,25 +64,51 @@ export default function AdminDashboard() {
               <Shield className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h1 className="font-display text-lg font-bold text-foreground">Admin HQ</h1>
-              <p className="text-xs text-muted-foreground">Kenya Beauty Platform</p>
+              <h1 className="font-display text-lg font-bold text-foreground">Command Center</h1>
+              <p className="text-xs text-muted-foreground">Glam Beauty Platform HQ</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => signOut()} className="gap-2 text-muted-foreground">
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGenerate}
+              disabled={generating}
+              className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+            >
+              {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+              {generating ? "Analyzing..." : "Generate Insights"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => signOut()} className="gap-2 text-muted-foreground">
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="w-full justify-start bg-muted/30 border border-border/50 mb-6 overflow-x-auto">
-            <TabsTrigger value="overview" className="gap-1.5">
-              <BarChart3 className="w-3.5 h-3.5" />
-              Overview
-            </TabsTrigger>
+      {/* Command Center Content */}
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        {/* Intelligence Feed */}
+        <AdminInsightsFeed />
+
+        {/* Smart KPIs */}
+        <AdminOverview />
+
+        {/* Heat Map + Recent Activity */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <AdminSalonHeatMap />
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <CalendarCheck className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Recent Bookings</h3>
+            </div>
+            <RecentBookingsWidget />
+          </div>
+        </div>
+
+        {/* Detail Tabs */}
+        <Tabs defaultValue="salons" className="w-full">
+          <TabsList className="w-full justify-start bg-muted/30 border border-border/50 mb-4 overflow-x-auto">
             <TabsTrigger value="salons" className="gap-1.5">
               <Building2 className="w-3.5 h-3.5" />
               Salons
@@ -79,14 +126,54 @@ export default function AdminDashboard() {
               Broadcasts
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="overview"><AdminOverview /></TabsContent>
           <TabsContent value="salons"><AdminSalonsList /></TabsContent>
           <TabsContent value="clients"><AdminClientsList /></TabsContent>
           <TabsContent value="bookings"><AdminBookingsList /></TabsContent>
           <TabsContent value="broadcasts"><BroadcastManager /></TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+// Small inline widget for recent bookings
+function RecentBookingsWidget() {
+  const [bookings, setBookings] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetch = async () => {
+      const { data } = await (await import("@/integrations/supabase/client")).supabase
+        .from("bookings")
+        .select("id, client_name, status, total_amount, booking_date, start_time, salons(name)")
+        .order("created_at", { ascending: false })
+        .limit(5);
+      setBookings(data || []);
+    };
+    fetch();
+  }, []);
+
+  const statusDot: Record<string, string> = {
+    pending: "bg-yellow-400",
+    confirmed: "bg-blue-400",
+    completed: "bg-green-400",
+    cancelled: "bg-destructive",
+  };
+
+  return (
+    <div className="space-y-2">
+      {bookings.map((b) => (
+        <div key={b.id} className="flex items-center justify-between p-3 rounded-lg bg-card/60 border border-border/30">
+          <div className="flex items-center gap-3">
+            <div className={`w-2 h-2 rounded-full ${statusDot[b.status] || "bg-muted-foreground"}`} />
+            <div>
+              <p className="text-sm font-medium text-foreground">{b.client_name}</p>
+              <p className="text-xs text-muted-foreground">{(b.salons as any)?.name} · {b.booking_date}</p>
+            </div>
+          </div>
+          <span className="text-sm font-semibold text-foreground">KES {Number(b.total_amount).toLocaleString()}</span>
+        </div>
+      ))}
+      {bookings.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No bookings yet</p>}
     </div>
   );
 }
