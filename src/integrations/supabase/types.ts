@@ -212,6 +212,36 @@ export type Database = {
           },
         ]
       }
+      platform_insights: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          severity: string | null
+          title: string
+          type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          severity?: string | null
+          title: string
+          type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          severity?: string | null
+          title?: string
+          type?: string | null
+        }
+        Relationships: []
+      }
       portfolio_likes: {
         Row: {
           created_at: string
