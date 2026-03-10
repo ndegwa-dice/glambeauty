@@ -41,6 +41,8 @@ export function useClientBookings() {
         .from("bookings")
         .select(`
           id,
+          salon_id,
+          booking_date,
           booking_date,
           start_time,
           end_time,
