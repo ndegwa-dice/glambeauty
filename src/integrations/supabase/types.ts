@@ -98,6 +98,7 @@ export type Database = {
       }
       broadcasts: {
         Row: {
+          audience: string | null
           created_at: string | null
           expires_at: string | null
           id: string
@@ -107,6 +108,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          audience?: string | null
           created_at?: string | null
           expires_at?: string | null
           id?: string
@@ -116,6 +118,7 @@ export type Database = {
           type?: string
         }
         Update: {
+          audience?: string | null
           created_at?: string | null
           expires_at?: string | null
           id?: string
@@ -125,6 +128,66 @@ export type Database = {
           type?: string
         }
         Relationships: []
+      }
+      disputes: {
+        Row: {
+          admin_notes: string | null
+          booking_id: string | null
+          created_at: string | null
+          description: string | null
+          filed_by_role: string
+          filed_by_user_id: string
+          id: string
+          reason: string
+          resolution: string | null
+          salon_id: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          booking_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          filed_by_role: string
+          filed_by_user_id: string
+          id?: string
+          reason: string
+          resolution?: string | null
+          salon_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          booking_id?: string | null
+          created_at?: string | null
+          description?: string | null
+          filed_by_role?: string
+          filed_by_user_id?: string
+          id?: string
+          reason?: string
+          resolution?: string | null
+          salon_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disputes_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "disputes_salon_id_fkey"
+            columns: ["salon_id"]
+            isOneToOne: false
+            referencedRelation: "salons"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
@@ -316,6 +379,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_featured: boolean | null
+          is_verified: boolean | null
           logo_url: string | null
           name: string
           owner_id: string
@@ -338,6 +402,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_featured?: boolean | null
+          is_verified?: boolean | null
           logo_url?: string | null
           name: string
           owner_id: string
@@ -360,6 +425,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_featured?: boolean | null
+          is_verified?: boolean | null
           logo_url?: string | null
           name?: string
           owner_id?: string

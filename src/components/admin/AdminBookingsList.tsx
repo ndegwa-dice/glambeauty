@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -12,6 +13,7 @@ interface BookingRow {
   id: string;
   client_name: string;
   client_phone: string;
+  client_user_id: string | null;
   booking_date: string;
   start_time: string;
   status: string;
@@ -40,7 +42,7 @@ export function AdminBookingsList() {
     const fetch = async () => {
       const { data } = await supabase
         .from("bookings")
-        .select("id, client_name, client_phone, booking_date, start_time, status, total_amount, payment_status, salon_id, salons(name), services(name)")
+        .select("id, client_name, client_phone, client_user_id, booking_date, start_time, status, total_amount, payment_status, salon_id, salons(name), services(name)")
         .order("created_at", { ascending: false })
         .limit(500);
       setBookings((data as unknown as BookingRow[]) || []);
@@ -56,12 +58,14 @@ export function AdminBookingsList() {
     return matchSearch && matchStatus;
   });
 
+  const pendingCount = bookings.filter((b) => b.status === "pending").length;
+
   if (loading) return <div className="flex justify-center py-12"><LoadingSpinner size="lg" /></div>;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search bookings..."
@@ -76,12 +80,17 @@ export function AdminBookingsList() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="pending">Pending ({pendingCount})</SelectItem>
             <SelectItem value="confirmed">Confirmed</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
           </SelectContent>
         </Select>
+        {statusFilter !== "pending" && pendingCount > 0 && (
+          <Button variant="outline" size="sm" onClick={() => setStatusFilter("pending")} className="gap-1.5 border-yellow-500/30 text-yellow-400">
+            ⏳ {pendingCount} Pending
+          </Button>
+        )}
         <Badge variant="secondary">{filtered.length} bookings</Badge>
       </div>
 
@@ -94,6 +103,7 @@ export function AdminBookingsList() {
               <TableHead>Service</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Amount</TableHead>
+              <TableHead>Payment</TableHead>
               <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
@@ -113,6 +123,9 @@ export function AdminBookingsList() {
                 </TableCell>
                 <TableCell className="text-sm font-medium">KES {Number(booking.total_amount).toLocaleString()}</TableCell>
                 <TableCell>
+                  <Badge variant="outline" className="text-xs">{booking.payment_status}</Badge>
+                </TableCell>
+                <TableCell>
                   <Badge className={`text-xs ${statusColors[booking.status] || ""}`}>
                     {booking.status}
                   </Badge>
@@ -121,7 +134,7 @@ export function AdminBookingsList() {
             ))}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                   No bookings found
                 </TableCell>
               </TableRow>

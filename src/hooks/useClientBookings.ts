@@ -11,6 +11,7 @@ export interface ClientBooking {
   total_amount: number;
   deposit_amount: number;
   notes: string | null;
+  salon_id: string;
   salon_name: string;
   salon_address: string | null;
   salon_logo_url: string | null;
@@ -40,6 +41,8 @@ export function useClientBookings() {
         .from("bookings")
         .select(`
           id,
+          salon_id,
+          booking_date,
           booking_date,
           start_time,
           end_time,
@@ -81,6 +84,7 @@ export function useClientBookings() {
         total_amount: b.total_amount,
         deposit_amount: b.deposit_amount,
         notes: b.notes,
+        salon_id: b.salon_id,
         salon_name: b.salons.name,
         salon_address: b.salons.address,
         salon_logo_url: b.salons.logo_url,

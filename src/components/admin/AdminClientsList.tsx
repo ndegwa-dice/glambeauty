@@ -15,6 +15,8 @@ interface ClientProfile {
   phone_number: string | null;
   avatar_url: string | null;
   created_at: string;
+  booking_count: number;
+  total_spent: number;
 }
 
 export function AdminClientsList() {
@@ -24,11 +26,33 @@ export function AdminClientsList() {
 
   useEffect(() => {
     const fetch = async () => {
-      const { data } = await supabase
+      // Get profiles
+      const { data: profiles } = await supabase
         .from("profiles")
         .select("*")
         .order("created_at", { ascending: false });
-      setClients((data as ClientProfile[]) || []);
+
+      // Get booking stats per user
+      const { data: bookings } = await supabase
+        .from("bookings")
+        .select("client_user_id, total_amount");
+
+      const statsMap = new Map<string, { count: number; total: number }>();
+      (bookings || []).forEach((b: any) => {
+        if (!b.client_user_id) return;
+        const existing = statsMap.get(b.client_user_id) || { count: 0, total: 0 };
+        statsMap.set(b.client_user_id, {
+          count: existing.count + 1,
+          total: existing.total + Number(b.total_amount || 0),
+        });
+      });
+
+      const enriched = (profiles || []).map((p: any) => {
+        const stats = statsMap.get(p.user_id) || { count: 0, total: 0 };
+        return { ...p, booking_count: stats.count, total_spent: stats.total };
+      });
+
+      setClients(enriched);
       setLoading(false);
     };
     fetch();
@@ -62,6 +86,8 @@ export function AdminClientsList() {
             <TableRow>
               <TableHead>User</TableHead>
               <TableHead>Phone</TableHead>
+              <TableHead>Bookings</TableHead>
+              <TableHead>Total Spent</TableHead>
               <TableHead>Joined</TableHead>
             </TableRow>
           </TableHeader>
@@ -80,6 +106,12 @@ export function AdminClientsList() {
                   </div>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">{client.phone_number || "—"}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="text-xs">{client.booking_count}</Badge>
+                </TableCell>
+                <TableCell className="text-sm font-medium">
+                  {client.total_spent > 0 ? `KES ${client.total_spent.toLocaleString()}` : "—"}
+                </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {format(new Date(client.created_at), "MMM d, yyyy")}
                 </TableCell>
@@ -87,7 +119,7 @@ export function AdminClientsList() {
             ))}
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                   No clients found
                 </TableCell>
               </TableRow>

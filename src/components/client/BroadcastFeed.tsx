@@ -8,6 +8,7 @@ interface Broadcast {
   title: string;
   message: string;
   type: string;
+  audience: string;
   created_at: string;
 }
 
@@ -23,7 +24,11 @@ const typeEmoji: Record<string, string> = {
   promo: "🎉",
 };
 
-export function BroadcastFeed() {
+interface BroadcastFeedProps {
+  role?: "client" | "salon_owner";
+}
+
+export function BroadcastFeed({ role = "client" }: BroadcastFeedProps) {
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
@@ -31,7 +36,7 @@ export function BroadcastFeed() {
     const fetch = async () => {
       const { data } = await supabase
         .from("broadcasts")
-        .select("id, title, message, type, created_at")
+        .select("id, title, message, type, audience, created_at")
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(5);
@@ -47,7 +52,11 @@ export function BroadcastFeed() {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const visible = broadcasts.filter((b) => !dismissed.has(b.id));
+  const audienceKey = role === "salon_owner" ? "salons" : "clients";
+  const visible = broadcasts
+    .filter((b) => !dismissed.has(b.id))
+    .filter((b) => b.audience === "all" || b.audience === audienceKey);
+
   if (visible.length === 0) return null;
 
   return (
