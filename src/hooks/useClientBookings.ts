@@ -84,6 +84,7 @@ export function useClientBookings() {
         total_amount: b.total_amount,
         deposit_amount: b.deposit_amount,
         notes: b.notes,
+        salon_id: b.salon_id,
         salon_name: b.salons.name,
         salon_address: b.salons.address,
         salon_logo_url: b.salons.logo_url,
