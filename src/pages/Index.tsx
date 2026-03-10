@@ -1,5 +1,5 @@
 import { HeroSection } from "@/components/hero/HeroSection";
-import { Calendar, CreditCard, Sparkles, Zap, Shield, Clock } from "lucide-react";
+import { Calendar, CreditCard, Sparkles, Zap, Shield, Clock, Lock } from "lucide-react";
 import { GlamosLogo } from "@/components/hero/GlamosLogo";
 
 export default function Index() {
@@ -152,7 +152,12 @@ export default function Index() {
               <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">Support</a>
               <a href="#" className="text-sm text-muted-foreground hover:text-primary transition-colors">Privacy</a>
             </div>
-            <p className="text-sm text-muted-foreground">© 2026 Built with ❤️ in Nairobi</p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">© 2026 Built with ❤️ in Nairobi</p>
+              <a href="/auth" className="p-1.5 rounded-md text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors" aria-label="Admin">
+                <Lock className="w-3.5 h-3.5" />
+              </a>
+            </div>
           </div>
         </div>
       </footer>
