@@ -17,6 +17,7 @@ import { NotificationBell } from "./NotificationBell";
 import { QueenStats } from "./QueenStats";
 import { BookingHistory } from "./BookingHistory";
 import { BroadcastFeed } from "./BroadcastFeed";
+import { AppointmentCountdown } from "./AppointmentCountdown";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -44,6 +45,16 @@ export function ClientDashboard() {
     });
     return sorted[0] || null;
   }, [upcomingBookings]);
+
+  const nextBookingForCountdown = useMemo(() => {
+    if (!nextBooking) return null;
+    return {
+      booking_date: nextBooking.booking_date,
+      start_time: nextBooking.start_time,
+      service: { name: nextBooking.service_name },
+      salon: { name: nextBooking.salon_name },
+    };
+  }, [nextBooking]);
 
   const handleSelectSalon = (salon: DiscoverSalon | FeaturedSalon) => {
     setSelectedSalon(salon);
@@ -119,6 +130,9 @@ export function ClientDashboard() {
 
             {/* HOME TAB */}
             <TabsContent value="home" className="mt-0 space-y-6">
+              {/* Countdown Timer */}
+              <AppointmentCountdown nextBooking={nextBookingForCountdown} />
+
               {/* Broadcasts */}
               <BroadcastFeed />
 
