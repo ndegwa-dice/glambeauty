@@ -130,6 +130,9 @@ export function ClientDashboard() {
 
             {/* HOME TAB */}
             <TabsContent value="home" className="mt-0 space-y-6">
+              {/* Countdown Timer */}
+              <AppointmentCountdown nextBooking={nextBookingForCountdown} />
+
               {/* Broadcasts */}
               <BroadcastFeed />
 
