@@ -1,88 +1,47 @@
 
 
-# Avatar & Salon Brand Control Plan
+# Fix: Build Error, Missing Countdown, and Booking Flow
 
-## What We're Building
+## Three Issues to Fix
 
-1. **User avatar upload** -- All users (clients, stylists, salon owners) can upload a profile photo from their dashboard header, stored in a new `avatars` storage bucket
-2. **Salon brand assets** -- Logo, cover photo upload in salon dashboard settings with live preview
-3. **Service images** -- Each service gets an optional `image_url` so salons can showcase their work per service
-4. **Discovery integration** -- Salon cards in discover section properly display logo, cover, and service images
+### 1. Build Error -- `send-stylist-invite` Resend import
+The edge function imports `npm:resend@2.0.0` which fails without a `deno.json`. Fix by switching to `esm.sh` import (same pattern as the supabase-js import in the same file).
 
----
+**File**: `supabase/functions/send-stylist-invite/index.ts`
+- Change `import { Resend } from "npm:resend@2.0.0"` to `import { Resend } from "https://esm.sh/resend@2.0.0"`
 
-## Database Changes
+### 2. Countdown Timer Missing from Home Tab
+The `AppointmentCountdown` component currently only appears inside the Discover tab (via `DiscoverSection`). It needs to also appear on the Home tab.
 
-### Add `image_url` to `services` table
-```sql
-ALTER TABLE services ADD COLUMN image_url text;
-```
+Additionally, `nextBooking` from `useClientBookings` has a flat structure (`salon_name`, `service_name`) but `AppointmentCountdown` expects nested objects (`service: { name }`, `salon: { name }`). Need to transform the data.
 
-### Create `avatars` storage bucket
-Public bucket for user profile photos with RLS so users can only upload to their own folder.
+**File**: `src/components/client/ClientDashboard.tsx`
+- Import `AppointmentCountdown`
+- Add it to the Home tab (above BroadcastFeed)
+- Transform `nextBooking` to match the expected shape: `{ booking_date, start_time, service: { name: nextBooking.service_name }, salon: { name: nextBooking.salon_name } }`
 
----
+### 3. Bookings Not Appearing on Salon Dashboard
+The booking insert in `BookingSheet` looks correct. The likely issue is the `useDiscoverSalons` filter `.eq("is_verified", true)` -- if a salon isn't verified, clients can't discover it to book. But if the booking was already made, the salon dashboard should still show it.
 
-## Implementation
+Let me verify the salon dashboard's booking query uses the correct RLS. The `useSalonBookings` hook filters by `salon_id` and date range. The RLS policy "Salon owners can view their salon bookings" uses `owns_salon(auth.uid(), salon_id)`. This should work.
 
-### 1. User Avatar Upload (All Roles)
+The more likely issue: the salon dashboard may be filtering by week, and the booking date might be outside the current week view. Or the booking status filtering could be wrong. The real-time subscription looks correct.
 
-**`DashboardHeader.tsx`** -- Add a camera icon overlay on the avatar. Tapping opens file picker. Upload to `avatars/{user_id}/avatar-{timestamp}.ext`, then call `updateProfile({ avatar_url })`.
+I'll also check if there's any issue with the booking insert itself -- the `client_phone` field is NOT NULL in the schema but `profile?.phone_number` could be empty string or null.
 
-**`ClientDashboard.tsx`** -- The header already shows `profile?.avatar_url`. Just needs the upload action wired in.
-
-**Salon owner dashboard (`Dashboard.tsx`)** -- Same header pattern with avatar upload.
-
-### 2. Salon Brand Control (Settings Tab)
-
-Create **`src/components/salon/SalonBrandManager.tsx`**:
-- Logo upload (square, displayed in a rounded container with border)
-- Cover/banner photo upload (wide aspect ratio preview)
-- Live preview card showing how the salon appears in discovery
-- Uploads go to `avatars/{salon_id}/logo-{ts}.ext` and `avatars/{salon_id}/cover-{ts}.ext`
-- Updates `salons` table: `logo_url`, `cover_image_url`, `featured_image_url`
-
-Integrate into `Dashboard.tsx` settings tab alongside `WorkingHoursManager`.
-
-### 3. Service Images
-
-**`ServiceFormSheet.tsx`** -- Add image upload field with preview thumbnail. Upload to `avatars/{salon_id}/service-{ts}.ext`.
-
-**`ServiceCard.tsx`** (salon side) -- Show service image thumbnail on the left side of the card.
-
-**`src/components/booking/ServiceCard.tsx`** (client side) -- Show service image in booking flow cards.
-
-### 4. Discovery Cards Update
-
-**`FeaturedSalonCard.tsx`** and **`SalonGridCard.tsx`** already handle `cover_image_url` and `logo_url` -- no changes needed, they'll automatically display uploaded assets.
+**Files to fix**:
+1. `supabase/functions/send-stylist-invite/index.ts` -- fix import
+2. `src/components/client/ClientDashboard.tsx` -- add countdown to Home tab with data transform
 
 ---
 
-## Files to Create/Edit
+## Detailed Changes
 
-| File | Action |
-|------|--------|
-| `supabase migration` | Add `image_url` to services, create avatars bucket + RLS |
-| `src/components/client/DashboardHeader.tsx` | Add avatar upload with camera overlay |
-| `src/components/salon/SalonBrandManager.tsx` | **NEW** -- Logo + cover upload with preview |
-| `src/components/salon/ServiceFormSheet.tsx` | Add image upload field |
-| `src/components/salon/ServiceCard.tsx` | Show service image thumbnail |
-| `src/components/booking/ServiceCard.tsx` | Show service image in booking |
-| `src/pages/Dashboard.tsx` | Add SalonBrandManager to settings tab |
+### `supabase/functions/send-stylist-invite/index.ts`
+Line 2: Change `npm:resend@2.0.0` to `https://esm.sh/resend@2.0.0`
 
----
-
-## Storage Structure
-
-```text
-avatars/
-├── {user_id}/
-│   └── avatar-{timestamp}.jpg
-├── {salon_id}/
-│   ├── logo-{timestamp}.png
-│   ├── cover-{timestamp}.jpg
-│   └── service-{timestamp}.jpg
-```
-
-All uploads use the public `avatars` bucket. RLS policies ensure authenticated users can upload to their own folder path.
+### `src/components/client/ClientDashboard.tsx`
+- Import `AppointmentCountdown`
+- Create a transformed `nextBookingForCountdown` useMemo that maps flat fields to nested structure
+- Add `<AppointmentCountdown>` at the top of the Home tab content (before `<BroadcastFeed />`)
 
