@@ -17,6 +17,7 @@ import { NotificationBell } from "./NotificationBell";
 import { QueenStats } from "./QueenStats";
 import { BookingHistory } from "./BookingHistory";
 import { BroadcastFeed } from "./BroadcastFeed";
+import { AppointmentCountdown } from "./AppointmentCountdown";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
