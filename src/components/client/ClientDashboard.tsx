@@ -46,6 +46,16 @@ export function ClientDashboard() {
     return sorted[0] || null;
   }, [upcomingBookings]);
 
+  const nextBookingForCountdown = useMemo(() => {
+    if (!nextBooking) return null;
+    return {
+      booking_date: nextBooking.booking_date,
+      start_time: nextBooking.start_time,
+      service: { name: nextBooking.service_name },
+      salon: { name: nextBooking.salon_name },
+    };
+  }, [nextBooking]);
+
   const handleSelectSalon = (salon: DiscoverSalon | FeaturedSalon) => {
     setSelectedSalon(salon);
     setBookingSheetOpen(true);
