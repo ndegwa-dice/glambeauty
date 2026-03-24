@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { SparkleBackground } from "@/components/ui/SparkleBackground";
 
 interface MobileLayoutProps {
   children: ReactNode;
@@ -10,7 +11,9 @@ interface MobileLayoutProps {
 
 export function MobileLayout({ children, className, header, footer }: MobileLayoutProps) {
   return (
-    <div className="min-h-screen flex flex-col bg-background gradient-subtle safe-top safe-bottom">
+    <div className="min-h-screen flex flex-col bg-background safe-top safe-bottom">
+      <SparkleBackground />
+      
       {header && (
         <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
           {header}
