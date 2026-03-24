@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { format, addDays } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 
 type BookingStatus = Database["public"]["Enums"]["booking_status"];
@@ -18,6 +18,9 @@ export interface SalonBookingWithDetails {
   stylist_name: string | null;
   stylist_avatar: string | null;
   total_amount: number;
+  notes: string | null;
+  created_at: string;
+  deposit_amount: number;
 }
 
 interface UseSalonBookingsProps {
@@ -50,8 +53,11 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
         client_name,
         client_phone,
         total_amount,
+        deposit_amount,
+        notes,
+        created_at,
         stylist_id,
-        service:services(name),
+        service:services(name, price, duration_minutes),
         stylist:stylists(name, avatar_url)
       `)
       .eq("salon_id", salonId)
@@ -61,20 +67,27 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
 
     if (data) {
       setBookings(
-        data.map((b) => ({
-          id: b.id,
-          booking_date: b.booking_date,
-          start_time: b.start_time,
-          end_time: b.end_time,
-          status: b.status,
-          client_name: b.client_name,
-          client_phone: b.client_phone,
-          total_amount: b.total_amount,
-          stylist_id: b.stylist_id,
-          service_name: (b.service as { name: string } | null)?.name || "Service",
-          stylist_name: (b.stylist as { name: string; avatar_url: string | null } | null)?.name || null,
-          stylist_avatar: (b.stylist as { name: string; avatar_url: string | null } | null)?.avatar_url || null,
-        }))
+        data.map((b) => {
+          const svc = b.service as { name: string; price: number; duration_minutes: number } | null;
+          const sty = b.stylist as { name: string; avatar_url: string | null } | null;
+          return {
+            id: b.id,
+            booking_date: b.booking_date,
+            start_time: b.start_time,
+            end_time: b.end_time,
+            status: b.status,
+            client_name: b.client_name,
+            client_phone: b.client_phone,
+            total_amount: b.total_amount,
+            deposit_amount: b.deposit_amount,
+            notes: b.notes,
+            created_at: b.created_at,
+            stylist_id: b.stylist_id,
+            service_name: svc?.name || "Service",
+            stylist_name: sty?.name || null,
+            stylist_avatar: sty?.avatar_url || null,
+          };
+        })
       );
     }
 
@@ -84,7 +97,6 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
   useEffect(() => {
     fetchBookings();
 
-    // Real-time subscription
     const channel = supabase
       .channel(`salon_bookings_range_${salonId}_${startDate}`)
       .on(
@@ -106,7 +118,6 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
     };
   }, [salonId, startDate, endDate]);
 
-  // Group bookings by date
   const bookingsByDate = useMemo(() => {
     const grouped: Record<string, SalonBookingWithDetails[]> = {};
     bookings.forEach((booking) => {
@@ -118,7 +129,6 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
     return grouped;
   }, [bookings]);
 
-  // Get booking counts per day
   const bookingCounts = useMemo(() => {
     const counts: Record<string, { total: number; pending: number; confirmed: number; completed: number }> = {};
     bookings.forEach((booking) => {
