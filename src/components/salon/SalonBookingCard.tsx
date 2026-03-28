@@ -27,6 +27,7 @@ export interface SalonBooking {
   id: string;
   client_name: string;
   client_phone: string;
+  client_user_id?: string | null;
   booking_date: string;
   start_time: string;
   end_time: string;
