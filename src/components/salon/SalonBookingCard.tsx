@@ -181,6 +181,30 @@ export function SalonBookingCard({ booking, onConfirm, onComplete, onCancel }: S
           </div>
         )}
 
+        {/* Quick Actions */}
+        {booking.status !== "cancelled" && booking.status !== "completed" && (
+          <div className="flex items-center gap-2 mt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs flex-1 border-primary/30 hover:bg-primary/10"
+              onClick={handleCallClient}
+            >
+              <PhoneCall className="w-3.5 h-3.5 mr-1 text-primary" />
+              Call Client
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs flex-1 border-secondary/30 hover:bg-secondary/10"
+              onClick={handleSendReminder}
+            >
+              <Bell className="w-3.5 h-3.5 mr-1 text-secondary" />
+              Send Reminder
+            </Button>
+          </div>
+        )}
+
         {/* Booked ago */}
         {booking.created_at && (
           <p className="text-xs text-muted-foreground/60 mt-2">
