@@ -76,10 +76,31 @@ function calcDuration(start: string, end: string): string {
 
 export function SalonBookingCard({ booking, onConfirm, onComplete, onCancel, onReschedule }: SalonBookingCardProps) {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [rescheduleHistory, setRescheduleHistory] = useState<Array<{
+    id: string;
+    previous_date: string;
+    previous_start_time: string;
+    new_date: string;
+    new_start_time: string;
+    created_at: string;
+  }>>([]);
   const [newDate, setNewDate] = useState<Date | undefined>(parseISO(booking.booking_date));
   const [newStartTime, setNewStartTime] = useState(booking.start_time.slice(0, 5));
   const [newEndTime, setNewEndTime] = useState(booking.end_time.slice(0, 5));
   const [rescheduling, setRescheduling] = useState(false);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const { data } = await supabase
+        .from("booking_reschedule_log")
+        .select("id, previous_date, previous_start_time, new_date, new_start_time, created_at")
+        .eq("booking_id", booking.id)
+        .order("created_at", { ascending: false });
+      if (data) setRescheduleHistory(data);
+    };
+    fetchHistory();
+  }, [booking.id, rescheduling]);
 
   const handleCallClient = () => {
     window.open(`tel:${booking.client_phone}`, "_self");
