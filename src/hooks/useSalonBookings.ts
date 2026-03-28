@@ -80,6 +80,7 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
             status: b.status,
             client_name: b.client_name,
             client_phone: b.client_phone,
+            client_user_id: b.client_user_id,
             total_amount: b.total_amount,
             deposit_amount: b.deposit_amount,
             notes: b.notes,
