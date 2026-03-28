@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format, parseISO, formatDistanceToNow } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ import {
   Sparkles,
   Bell,
   CalendarClock,
+  History,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -75,10 +76,31 @@ function calcDuration(start: string, end: string): string {
 
 export function SalonBookingCard({ booking, onConfirm, onComplete, onCancel, onReschedule }: SalonBookingCardProps) {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [rescheduleHistory, setRescheduleHistory] = useState<Array<{
+    id: string;
+    previous_date: string;
+    previous_start_time: string;
+    new_date: string;
+    new_start_time: string;
+    created_at: string;
+  }>>([]);
   const [newDate, setNewDate] = useState<Date | undefined>(parseISO(booking.booking_date));
   const [newStartTime, setNewStartTime] = useState(booking.start_time.slice(0, 5));
   const [newEndTime, setNewEndTime] = useState(booking.end_time.slice(0, 5));
   const [rescheduling, setRescheduling] = useState(false);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      const { data } = await supabase
+        .from("booking_reschedule_log")
+        .select("id, previous_date, previous_start_time, new_date, new_start_time, created_at")
+        .eq("booking_id", booking.id)
+        .order("created_at", { ascending: false });
+      if (data) setRescheduleHistory(data);
+    };
+    fetchHistory();
+  }, [booking.id, rescheduling]);
 
   const handleCallClient = () => {
     window.open(`tel:${booking.client_phone}`, "_self");
@@ -127,6 +149,21 @@ export function SalonBookingCard({ booking, onConfirm, onComplete, onCancel, onR
         .eq("id", booking.id);
 
       if (updateError) throw updateError;
+
+      // Log the reschedule
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("booking_reschedule_log").insert({
+          booking_id: booking.id,
+          previous_date: booking.booking_date,
+          previous_start_time: booking.start_time,
+          previous_end_time: booking.end_time,
+          new_date: formattedDate,
+          new_start_time: newStartTime,
+          new_end_time: newEndTime,
+          changed_by_user_id: user.id,
+        });
+      }
 
       // Notify client if linked
       if (booking.client_user_id) {
@@ -277,6 +314,40 @@ export function SalonBookingCard({ booking, onConfirm, onComplete, onCancel, onR
                 <CalendarClock className="w-3.5 h-3.5 mr-1 text-accent" />
                 Reschedule
               </Button>
+            </div>
+          )}
+
+          {/* Reschedule History */}
+          {rescheduleHistory.length > 0 && (
+            <div className="mt-3">
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>{rescheduleHistory.length} reschedule{rescheduleHistory.length > 1 ? "s" : ""}</span>
+                <span className="text-[10px]">{showHistory ? "▲" : "▼"}</span>
+              </button>
+              {showHistory && (
+                <div className="mt-2 space-y-2">
+                  {rescheduleHistory.map((log) => (
+                    <div key={log.id} className="p-2.5 rounded-lg bg-muted/20 border border-border/20 text-xs">
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <span className="line-through">
+                          {format(parseISO(log.previous_date), "MMM d")} at {log.previous_start_time.slice(0, 5)}
+                        </span>
+                        <span className="text-primary mx-1">→</span>
+                        <span className="text-foreground font-medium">
+                          {format(parseISO(log.new_date), "MMM d")} at {log.new_start_time.slice(0, 5)}
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground/60 text-[10px] mt-1">
+                        {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
