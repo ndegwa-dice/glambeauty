@@ -60,6 +60,30 @@ function calcDuration(start: string, end: string): string {
 }
 
 export function SalonBookingCard({ booking, onConfirm, onComplete, onCancel }: SalonBookingCardProps) {
+  const handleCallClient = () => {
+    window.open(`tel:${booking.client_phone}`, "_self");
+  };
+
+  const handleSendReminder = async () => {
+    if (!booking.client_user_id) {
+      toast.error("No linked client account to notify");
+      return;
+    }
+    try {
+      const { error } = await supabase.from("user_notifications").insert({
+        user_id: booking.client_user_id,
+        type: "reminder",
+        title: "Appointment Reminder 💅",
+        message: `Hey queen! Just a reminder about your ${booking.service_name} on ${format(parseISO(booking.booking_date), "MMM d")} at ${booking.start_time.slice(0, 5)}. See you soon! ✨`,
+        emoji: "⏰",
+        booking_id: booking.id,
+      });
+      if (error) throw error;
+      toast.success("Reminder sent to client!");
+    } catch {
+      toast.error("Failed to send reminder");
+    }
+  };
   const getStatusConfig = (status: BookingStatus) => {
     switch (status) {
       case "pending":
