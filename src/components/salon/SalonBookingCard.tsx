@@ -317,6 +317,40 @@ export function SalonBookingCard({ booking, onConfirm, onComplete, onCancel, onR
             </div>
           )}
 
+          {/* Reschedule History */}
+          {rescheduleHistory.length > 0 && (
+            <div className="mt-3">
+              <button
+                onClick={() => setShowHistory(!showHistory)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>{rescheduleHistory.length} reschedule{rescheduleHistory.length > 1 ? "s" : ""}</span>
+                <span className="text-[10px]">{showHistory ? "▲" : "▼"}</span>
+              </button>
+              {showHistory && (
+                <div className="mt-2 space-y-2">
+                  {rescheduleHistory.map((log) => (
+                    <div key={log.id} className="p-2.5 rounded-lg bg-muted/20 border border-border/20 text-xs">
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <span className="line-through">
+                          {format(parseISO(log.previous_date), "MMM d")} at {log.previous_start_time.slice(0, 5)}
+                        </span>
+                        <span className="text-primary mx-1">→</span>
+                        <span className="text-foreground font-medium">
+                          {format(parseISO(log.new_date), "MMM d")} at {log.new_start_time.slice(0, 5)}
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground/60 text-[10px] mt-1">
+                        {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Booked ago */}
           {booking.created_at && (
             <p className="text-xs text-muted-foreground/60 mt-2">
