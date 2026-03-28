@@ -150,6 +150,21 @@ export function SalonBookingCard({ booking, onConfirm, onComplete, onCancel, onR
 
       if (updateError) throw updateError;
 
+      // Log the reschedule
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from("booking_reschedule_log").insert({
+          booking_id: booking.id,
+          previous_date: booking.booking_date,
+          previous_start_time: booking.start_time,
+          previous_end_time: booking.end_time,
+          new_date: formattedDate,
+          new_start_time: newStartTime,
+          new_end_time: newEndTime,
+          changed_by_user_id: user.id,
+        });
+      }
+
       // Notify client if linked
       if (booking.client_user_id) {
         await supabase.from("user_notifications").insert({
