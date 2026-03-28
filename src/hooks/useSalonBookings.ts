@@ -13,6 +13,7 @@ export interface SalonBookingWithDetails {
   status: BookingStatus;
   client_name: string;
   client_phone: string;
+  client_user_id: string | null;
   service_name: string;
   stylist_id: string | null;
   stylist_name: string | null;
@@ -52,6 +53,7 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
         status,
         client_name,
         client_phone,
+        client_user_id,
         total_amount,
         deposit_amount,
         notes,
@@ -78,6 +80,7 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
             status: b.status,
             client_name: b.client_name,
             client_phone: b.client_phone,
+            client_user_id: b.client_user_id,
             total_amount: b.total_amount,
             deposit_amount: b.deposit_amount,
             notes: b.notes,

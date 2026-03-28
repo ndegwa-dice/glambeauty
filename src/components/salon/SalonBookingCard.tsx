@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   Clock,
   Phone,
+  PhoneCall,
   Check,
   X,
   Calendar,
@@ -13,7 +14,10 @@ import {
   Timer,
   MessageSquare,
   Sparkles,
+  Bell,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -23,6 +27,7 @@ export interface SalonBooking {
   id: string;
   client_name: string;
   client_phone: string;
+  client_user_id?: string | null;
   booking_date: string;
   start_time: string;
   end_time: string;
@@ -56,6 +61,30 @@ function calcDuration(start: string, end: string): string {
 }
 
 export function SalonBookingCard({ booking, onConfirm, onComplete, onCancel }: SalonBookingCardProps) {
+  const handleCallClient = () => {
+    window.open(`tel:${booking.client_phone}`, "_self");
+  };
+
+  const handleSendReminder = async () => {
+    if (!booking.client_user_id) {
+      toast.error("No linked client account to notify");
+      return;
+    }
+    try {
+      const { error } = await supabase.from("user_notifications").insert({
+        user_id: booking.client_user_id,
+        type: "reminder",
+        title: "Appointment Reminder 💅",
+        message: `Hey queen! Just a reminder about your ${booking.service_name} on ${format(parseISO(booking.booking_date), "MMM d")} at ${booking.start_time.slice(0, 5)}. See you soon! ✨`,
+        emoji: "⏰",
+        booking_id: booking.id,
+      });
+      if (error) throw error;
+      toast.success("Reminder sent to client!");
+    } catch {
+      toast.error("Failed to send reminder");
+    }
+  };
   const getStatusConfig = (status: BookingStatus) => {
     switch (status) {
       case "pending":
@@ -149,6 +178,30 @@ export function SalonBookingCard({ booking, onConfirm, onComplete, onCancel }: S
             <span className="text-xs text-muted-foreground">
               Assigned to <span className="text-foreground font-medium">{booking.stylist_name}</span>
             </span>
+          </div>
+        )}
+
+        {/* Quick Actions */}
+        {booking.status !== "cancelled" && booking.status !== "completed" && (
+          <div className="flex items-center gap-2 mt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs flex-1 border-primary/30 hover:bg-primary/10"
+              onClick={handleCallClient}
+            >
+              <PhoneCall className="w-3.5 h-3.5 mr-1 text-primary" />
+              Call Client
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs flex-1 border-secondary/30 hover:bg-secondary/10"
+              onClick={handleSendReminder}
+            >
+              <Bell className="w-3.5 h-3.5 mr-1 text-secondary" />
+              Send Reminder
+            </Button>
           </div>
         )}
 
