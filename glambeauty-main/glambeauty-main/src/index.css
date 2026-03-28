@@ -1,0 +1,424 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Kenya Beauty Premium Dark Theme
+   Luxurious dark with pink & purple accents */
+
+@layer base {
+  :root {
+    /* Background: Deep charcoal-black */
+    --background: 240 6% 6%;
+    --foreground: 0 0% 98%;
+
+    /* Card: Dark elevated surface */
+    --card: 240 6% 10%;
+    --card-foreground: 0 0% 98%;
+
+    /* Popover */
+    --popover: 240 6% 10%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Primary: Vibrant Pink/Fuchsia */
+    --primary: 292 91% 73%;
+    --primary-foreground: 240 6% 6%;
+
+    /* Secondary: Soft Violet/Purple */
+    --secondary: 263 70% 76%;
+    --secondary-foreground: 240 6% 6%;
+
+    /* Muted: Dark gray */
+    --muted: 240 5% 18%;
+    --muted-foreground: 240 5% 60%;
+
+    /* Accent: Purple accent */
+    --accent: 263 70% 76%;
+    --accent-foreground: 240 6% 6%;
+
+    /* Pink for special highlights */
+    --pink: 292 91% 73%;
+    --pink-foreground: 240 6% 6%;
+
+    /* Purple for secondary accents */
+    --purple: 263 70% 76%;
+    --purple-foreground: 240 6% 6%;
+
+    /* Indigo for links */
+    --indigo: 239 84% 67%;
+    --indigo-foreground: 0 0% 98%;
+
+    /* Destructive */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Success */
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 98%;
+
+    /* UI Elements */
+    --border: 240 5% 17%;
+    --input: 240 5% 17%;
+    --ring: 292 91% 73%;
+
+    --radius: 0.875rem;
+
+    /* Sidebar - deep dark */
+    --sidebar-background: 240 6% 4%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 292 91% 73%;
+    --sidebar-primary-foreground: 240 6% 6%;
+    --sidebar-accent: 240 6% 12%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 240 5% 14%;
+    --sidebar-ring: 292 91% 73%;
+  }
+
+  /* Light mode override (keep as fallback) */
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 292 91% 50%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 263 70% 55%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 263 70% 55%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 292 91% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', system-ui, sans-serif;
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  /* Touch-friendly tap targets for mobile */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  /* Premium glass card with blur */
+  .card-glass {
+    @apply bg-card/80 backdrop-blur-xl rounded-2xl border border-border/50;
+  }
+
+  /* Solid card */
+  .card-solid {
+    @apply bg-card rounded-2xl border border-border/50;
+  }
+
+  /* Primary gradient (pink to purple) */
+  .gradient-primary {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(var(--secondary)) 100%
+    );
+  }
+
+  /* Subtle gradient for backgrounds */
+  .gradient-subtle {
+    background: linear-gradient(
+      180deg,
+      hsl(var(--background)) 0%,
+      hsl(240 6% 8%) 100%
+    );
+  }
+
+  /* Barbie gradient (pink to rose gold to lavender) */
+  .gradient-barbie {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(330 100% 79%) 50%,
+      hsl(var(--secondary)) 100%
+    );
+  }
+
+  /* Standard glow effect */
+  .glow-pink {
+    box-shadow: 0 0 40px -10px hsl(var(--primary) / 0.4);
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 40px -10px hsl(var(--secondary) / 0.4);
+  }
+
+  /* Intense barbie glow - multi-layered */
+  .glow-barbie {
+    box-shadow: 
+      0 0 20px hsl(var(--primary) / 0.5),
+      0 0 40px hsl(var(--primary) / 0.3),
+      0 0 60px hsl(var(--primary) / 0.2);
+  }
+
+  /* Text gradient */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(var(--secondary)) 100%
+    );
+  }
+
+  /* Border gradient */
+  .border-gradient {
+    position: relative;
+    background: hsl(var(--card));
+    border-radius: var(--radius);
+  }
+
+  .border-gradient::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary) / 0.5) 0%,
+      hsl(var(--secondary) / 0.5) 100%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  /* Premium button with glow */
+  .btn-premium {
+    @apply relative overflow-hidden;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--primary)) 0%,
+      hsl(var(--secondary)) 100%
+    );
+    box-shadow: 
+      0 0 20px hsl(var(--primary) / 0.3),
+      inset 0 1px 0 hsl(0 0% 100% / 0.1);
+  }
+
+  .btn-premium:hover {
+    box-shadow: 
+      0 0 30px hsl(var(--primary) / 0.4),
+      inset 0 1px 0 hsl(0 0% 100% / 0.15);
+  }
+
+  /* Shimmer glass effect for cards */
+  .shimmer-glass {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shimmer-glass::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(var(--primary) / 0.08) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-barbie 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* Input focus glow */
+  .input-glow:focus-within {
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+  }
+}
+
+@layer utilities {
+  /* Safe area padding for mobile */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Hide scrollbar but allow scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Custom scrollbar for dark theme */
+  .scrollbar-dark {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+
+  .scrollbar-dark::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-dark::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-dark::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted));
+    border-radius: 3px;
+  }
+}
+
+/* Barbie-themed keyframes */
+@keyframes shimmer-barbie {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { 
+    box-shadow: 
+      0 0 20px hsl(var(--primary) / 0.4),
+      0 0 40px hsl(var(--primary) / 0.2); 
+  }
+  50% { 
+    box-shadow: 
+      0 0 30px hsl(var(--primary) / 0.6),
+      0 0 60px hsl(var(--primary) / 0.3); 
+  }
+}
+
+@keyframes float-sparkle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(5deg); }
+}
+
+/* Hero Section Animations */
+@keyframes hero-fade-up {
+  from { 
+    opacity: 0; 
+    transform: translateY(30px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes float-particle {
+  0%, 100% { 
+    transform: translateY(0) translateX(0); 
+    opacity: 0.2; 
+  }
+  50% { 
+    transform: translateY(-25px) translateX(15px); 
+    opacity: 0.5; 
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { 
+    opacity: 0.3; 
+    transform: scale(1); 
+  }
+  50% { 
+    opacity: 0.5; 
+    transform: scale(1.05); 
+  }
+}
+
+@keyframes scroll-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(8px); }
+}
+
+/* Futuristic Animations */
+@keyframes scanline {
+  0% { transform: translateX(-100%); opacity: 0; }
+  50% { opacity: 0.3; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes cyber-glow {
+  0%, 100% { 
+    filter: drop-shadow(0 0 10px hsl(var(--primary) / 0.5));
+  }
+  50% { 
+    filter: drop-shadow(0 0 20px hsl(var(--primary) / 0.8));
+  }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.sparkle-float {
+  animation: float-sparkle 3s ease-in-out infinite;
+}
+
+.animate-hero-fade-up {
+  animation: hero-fade-up 0.8s ease-out both;
+}
+
+.animate-float-particle {
+  animation: float-particle 6s ease-in-out infinite;
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+.animate-scroll-bounce {
+  animation: scroll-bounce 2s ease-in-out infinite;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-cyber-glow {
+  animation: cyber-glow 2s ease-in-out infinite;
+}
