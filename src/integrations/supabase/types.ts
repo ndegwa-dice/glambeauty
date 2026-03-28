@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      booking_reschedule_log: {
+        Row: {
+          booking_id: string
+          changed_by_user_id: string
+          created_at: string
+          id: string
+          new_date: string
+          new_end_time: string
+          new_start_time: string
+          previous_date: string
+          previous_end_time: string
+          previous_start_time: string
+        }
+        Insert: {
+          booking_id: string
+          changed_by_user_id: string
+          created_at?: string
+          id?: string
+          new_date: string
+          new_end_time: string
+          new_start_time: string
+          previous_date: string
+          previous_end_time: string
+          previous_start_time: string
+        }
+        Update: {
+          booking_id?: string
+          changed_by_user_id?: string
+          created_at?: string
+          id?: string
+          new_date?: string
+          new_end_time?: string
+          new_start_time?: string
+          previous_date?: string
+          previous_end_time?: string
+          previous_start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_reschedule_log_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           booking_date: string
