@@ -142,6 +142,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
     const formattedPhone = formatToMpesa(phoneSource)!;
 
+    // Save phone to profile if it was entered inline
     if (!profile?.phone_number && phoneInput) {
       await supabase
         .from("profiles")
@@ -175,18 +176,28 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       }
     }
 
+    if (!finalStylistId) {
+      toast({
+        variant: "destructive",
+        title: "No stylist available",
+        description: "No stylists are available for this slot. Please pick another time.",
+      });
+      setSubmitting(false);
+      return;
+    }
+
     const { error } = await supabase.rpc("book_slot_atomic", {
-      p_salon_id:     salon.id,
-      p_service_id:   selectedService.id,
-      p_stylist_id:   finalStylistId,
-      p_date:         format(selectedDate, "yyyy-MM-dd"),
-      p_start:        selectedTime,
-      p_end:          endTime,
-      p_client_id:    user.id,
-      p_client_name:  profile?.full_name || "Guest",
-      p_client_phone: formattedPhone,
-      p_total:        selectedService.price,
-      p_deposit:      selectedService.deposit_amount,
+      p_salon_id:       salon.id,
+      p_service_id:     selectedService.id,
+      p_stylist_id:     finalStylistId,
+      p_date:           format(selectedDate, "yyyy-MM-dd"),
+      p_start_time:     selectedTime,
+      p_end_time:       endTime,
+      p_client_user_id: user.id,
+      p_client_name:    profile?.full_name || "Guest",
+      p_client_phone:   formattedPhone,
+      p_total_amount:   selectedService.price,
+      p_deposit_amount: selectedService.deposit_amount,
     });
 
     setSubmitting(false);
@@ -195,7 +206,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       const isSlotTaken = error.message?.includes("SLOT_TAKEN") || error.code === "23505";
       toast({
         variant: "destructive",
-        title: isSlotTaken ? "Slot just taken" : "Booking failed",
+        title: isSlotTaken ? "Slot just taken!" : "Booking failed",
         description: isSlotTaken
           ? "That slot was just taken — pick another time"
           : error.message,
@@ -427,6 +438,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               </CardContent>
             </Card>
 
+            {/* Phone gate — only shows if no valid phone on profile */}
             {!validateKenyanPhone(profile?.phone_number || "") && (
               <div className="space-y-2 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
                 <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
@@ -463,7 +475,10 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               </Button>
               <Button
                 onClick={handleConfirmBooking}
-                disabled={submitting}
+                disabled={
+                  submitting ||
+                  (!validateKenyanPhone(profile?.phone_number || "") && !validateKenyanPhone(phoneInput))
+                }
                 className="flex-1 h-12 btn-premium text-base"
               >
                 {submitting ? (
@@ -489,7 +504,10 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center animate-pulse-soft">
                 <Star className="w-3 h-3 text-amber-900" />
               </div>
-              <div className="absolute -bottom-1 -left-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center animate-pulse-soft" style={{ animationDelay: "0.5s" }}>
+              <div
+                className="absolute -bottom-1 -left-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center animate-pulse-soft"
+                style={{ animationDelay: "0.5s" }}
+              >
                 <Sparkles className="w-2.5 h-2.5 text-primary-foreground" />
               </div>
             </div>
@@ -520,7 +538,10 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               </CardContent>
             </Card>
 
-            <Button className="btn-premium w-full max-w-sm h-12" onClick={() => onOpenChange(false)}>
+            <Button
+              className="btn-premium w-full max-w-sm h-12"
+              onClick={() => onOpenChange(false)}
+            >
               <Sparkles className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Button>

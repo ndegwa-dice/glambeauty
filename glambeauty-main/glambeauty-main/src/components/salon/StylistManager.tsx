@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Users, Send } from "lucide-react";
+import { Users, Link } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StylistCard } from "./StylistCard";
 import { StylistFormSheet, type StylistFormData } from "./StylistFormSheet";
@@ -23,9 +23,7 @@ export function StylistManager({ salonId, salonName }: StylistManagerProps) {
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [editingStylist, setEditingStylist] = useState<StylistWithServices | null>(null);
 
-  const handleAdd = () => {
-    setInviteSheetOpen(true);
-  };
+  const handleAdd = () => setInviteSheetOpen(true);
 
   const handleEdit = (stylist: StylistWithServices) => {
     setEditingStylist(stylist);
@@ -49,35 +47,51 @@ export function StylistManager({ salonId, salonName }: StylistManagerProps) {
   };
 
   const handleResendInvite = async (stylist: StylistWithServices) => {
+    // Generate a fresh invite token and show it
     const email = (stylist as any).email;
-    if (!email) return;
-
-    try {
-      const response = await supabase.functions.invoke("send-stylist-invite", {
-        body: {
-          stylistName: stylist.name,
-          stylistEmail: email,
-          salonName: salonName || "Our Salon",
-          stylistId: stylist.id,
-        },
-      });
-
-      if (response.error) throw response.error;
-
-      toast({
-        title: "Invite resent! 📧",
-        description: `A new invitation has been sent to ${email}`,
-      });
-    } catch (error: any) {
+    if (!email) {
       toast({
         variant: "destructive",
-        title: "Failed to resend invite",
-        description: error.message,
+        title: "No email on record",
+        description: "This stylist has no email address saved.",
+      });
+      return;
+    }
+
+    try {
+      const { data: invite, error } = await supabase
+        .from("stylist_invites")
+        .insert({
+          stylist_id: stylist.id,
+          salon_id: salonId,
+          email,
+        })
+        .select("token")
+        .single();
+
+      if (error || !invite) throw new Error("Failed to generate invite link");
+
+      const link = `${window.location.origin}/auth?invite=${invite.token}`;
+      await navigator.clipboard.writeText(link);
+
+      toast({
+        title: "New invite link copied! 🔗",
+        description: `Share it with ${stylist.name} via WhatsApp or SMS`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Failed to generate invite",
+        description: err.message,
       });
     }
   };
 
-  const handleInviteSubmit = async (data: StylistInviteData, serviceIds: string[]) => {
+  // Returns { stylistId } so StylistInviteSheet can generate the token
+  const handleInviteSubmit = async (
+    data: StylistInviteData,
+    serviceIds: string[]
+  ): Promise<{ stylistId: string } | void> => {
     const { error, id: newStylistId } = await addStylist(
       {
         name: data.name,
@@ -88,44 +102,30 @@ export function StylistManager({ salonId, salonName }: StylistManagerProps) {
       serviceIds
     );
 
-    if (error) {
+    if (error || !newStylistId) {
       toast({
         variant: "destructive",
         title: "Failed to add stylist",
-        description: error.message,
+        description: error?.message || "Could not create stylist record",
       });
       return;
     }
 
-    try {
-      const response = await supabase.functions.invoke("send-stylist-invite", {
-        body: {
-          stylistName: data.name,
-          stylistEmail: data.email,
-          salonName: salonName || "Our Salon",
-          stylistId: newStylistId ?? "",
-        },
-      });
+    // Seed default working hours for all 7 days
+    const workingHoursRows = Array.from({ length: 7 }, (_, day) => ({
+      stylist_id: newStylistId,
+      day_of_week: day,
+      is_off: false,
+    }));
 
-      if (response.error) {
-        console.error("Invite email error:", response.error);
-        toast({
-          title: "Team member added! ✨",
-          description: "Added successfully but invite email failed to send. You can resend it later.",
-        });
-      } else {
-        toast({
-          title: "Invitation sent! 💌",
-          description: `${data.name} will receive login details at ${data.email}`,
-        });
-      }
-    } catch (err) {
-      console.error("Invite send error:", err);
-      toast({
-        title: "Team member added! ✨",
-        description: "Added successfully but invite email failed. You can resend it later.",
-      });
-    }
+    await supabase
+      .from("stylist_working_hours")
+      .insert(workingHoursRows)
+      .onConflict("stylist_id, day_of_week")
+      // @ts-ignore — Supabase JS types don't expose onConflict ignore yet
+      .ignore();
+
+    return { stylistId: newStylistId };
   };
 
   const handleEditSubmit = async (data: StylistFormData, serviceIds: string[]) => {
@@ -164,7 +164,7 @@ export function StylistManager({ salonId, salonName }: StylistManagerProps) {
           </h3>
         </div>
         <Button onClick={handleAdd} size="sm" className="btn-premium">
-          <Send className="w-4 h-4 mr-1" />
+          <Link className="w-4 h-4 mr-1" />
           Invite
         </Button>
       </div>
@@ -182,8 +182,8 @@ export function StylistManager({ salonId, salonName }: StylistManagerProps) {
             Invite stylists to join your salon team
           </p>
           <Button onClick={handleAdd} className="btn-premium">
-            <Send className="w-4 h-4 mr-2" />
-            Send First Invitation
+            <Link className="w-4 h-4 mr-2" />
+            Generate First Invite Link
           </Button>
         </div>
       ) : (
@@ -206,6 +206,8 @@ export function StylistManager({ salonId, salonName }: StylistManagerProps) {
         open={inviteSheetOpen}
         onOpenChange={setInviteSheetOpen}
         services={services}
+        salonId={salonId}
+        salonName={salonName || "Our Salon"}
         onSubmit={handleInviteSubmit}
       />
 

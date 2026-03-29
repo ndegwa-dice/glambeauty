@@ -11,22 +11,78 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useToast } from "@/hooks/use-toast";
 import { RoleSelector } from "@/components/auth/RoleSelector";
-import { Scissors, Sparkles, Mail } from "lucide-react";
+import { Scissors, Sparkles, Link } from "lucide-react";
 
 type Role = "client" | "salon_owner";
 
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role>("client");
+  const [inviteData, setInviteData] = useState<{
+    email: string;
+    stylistId: string;
+    salonId: string;
+    token: string;
+  } | null>(null);
+
   const { signIn, signUp, user } = useAuth();
   const { primaryRole, assignRole, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
 
-  const isInvite = searchParams.get("invite") === "true";
-  const inviteEmail = searchParams.get("email") || "";
+  const inviteToken = searchParams.get("invite");
+  const isInvite = !!inviteToken && inviteToken !== "true";
   const defaultTab = isInvite ? "signup" : "signin";
+
+  // Look up invite token on mount
+  useEffect(() => {
+    if (!isInvite || !inviteToken) return;
+
+    const lookupInvite = async () => {
+      const { data, error } = await supabase
+        .from("stylist_invites")
+        .select("email, stylist_id, salon_id, token, accepted, expires_at")
+        .eq("token", inviteToken)
+        .single();
+
+      if (error || !data) {
+        toast({
+          variant: "destructive",
+          title: "Invalid invite link",
+          description: "This link is invalid or has already been used.",
+        });
+        return;
+      }
+
+      if (data.accepted) {
+        toast({
+          variant: "destructive",
+          title: "Invite already used",
+          description: "This invite link has already been accepted. Please sign in.",
+        });
+        return;
+      }
+
+      if (new Date(data.expires_at) < new Date()) {
+        toast({
+          variant: "destructive",
+          title: "Invite expired",
+          description: "This link has expired. Ask your salon owner to send a new one.",
+        });
+        return;
+      }
+
+      setInviteData({
+        email: data.email,
+        stylistId: data.stylist_id,
+        salonId: data.salon_id,
+        token: data.token,
+      });
+    };
+
+    lookupInvite();
+  }, [inviteToken, isInvite]);
 
   // Redirect logged-in users based on role
   useEffect(() => {
@@ -95,43 +151,36 @@ export default function Auth() {
     const newUser = userData?.user;
 
     if (!newUser) {
-      toast({ variant: "destructive", title: "Something went wrong", description: "Could not retrieve your account. Please try signing in." });
+      toast({
+        variant: "destructive",
+        title: "Something went wrong",
+        description: "Could not retrieve your account. Please try signing in.",
+      });
       setIsLoading(false);
       return;
     }
 
-    // ── INVITE PATH ──────────────────────────────────────────────
-    if (isInvite && inviteEmail) {
-      // Find the pre-created stylist row by email
-      const { data: stylistRow, error: stylistError } = await supabase
-        .from("stylists")
-        .select("id, salon_id")
-        .eq("email", inviteEmail)
-        .is("user_id", null)
-        .single();
-
-      if (stylistError || !stylistRow) {
-        // Invite linking failed — still create account but warn
-        toast({
-          variant: "destructive",
-          title: "Invite not found",
-          description: "We couldn't link your account to a salon. Contact your salon owner.",
-        });
-        await assignRole("client");
-        navigate("/client");
-        setIsLoading(false);
-        return;
-      }
-
-      // Link auth user to stylist profile
-      await supabase
+    // ── TOKEN-BASED INVITE PATH ──────────────────────────────────
+    if (isInvite && inviteData) {
+      // Link auth user to the pre-created stylist record
+      const { error: linkError } = await supabase
         .from("stylists")
         .update({
           user_id: newUser.id,
           invitation_status: "accepted",
           name: fullName,
         })
-        .eq("id", stylistRow.id);
+        .eq("id", inviteData.stylistId);
+
+      if (linkError) {
+        toast({
+          variant: "destructive",
+          title: "Failed to link stylist account",
+          description: "Contact your salon owner to resend the invite.",
+        });
+        setIsLoading(false);
+        return;
+      }
 
       // Assign stylist role
       await supabase.from("user_roles").insert({
@@ -139,9 +188,26 @@ export default function Auth() {
         role: "stylist",
       });
 
+      // Mark invite as accepted
+      await supabase
+        .from("stylist_invites")
+        .update({ accepted: true, accepted_at: new Date().toISOString() })
+        .eq("token", inviteData.token);
+
+      // Seed working hours — 7 days all active by default
+      const workingHoursRows = Array.from({ length: 7 }, (_, day) => ({
+        stylist_id: inviteData.stylistId,
+        day_of_week: day,
+        is_off: false,
+      }));
+
+      await supabase
+        .from("stylist_working_hours")
+        .upsert(workingHoursRows, { onConflict: "stylist_id,day_of_week" });
+
       toast({
         title: "Welcome to the team! 💅",
-        description: "Your stylist account is ready.",
+        description: "Your stylist dashboard is ready.",
       });
 
       setIsLoading(false);
@@ -191,12 +257,20 @@ export default function Auth() {
         {isInvite && (
           <div className="p-4 rounded-xl bg-primary/10 border border-primary/30 text-center space-y-2">
             <div className="flex items-center justify-center gap-2">
-              <Mail className="w-5 h-5 text-primary" />
-              <span className="font-display font-semibold text-foreground">You're Invited! 💅</span>
+              <Link className="w-5 h-5 text-primary" />
+              <span className="font-display font-semibold text-foreground">
+                You've been invited! 💅
+              </span>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Create your account to join the salon team and access your stylist dashboard.
-            </p>
+            {inviteData ? (
+              <p className="text-sm text-muted-foreground">
+                Create your account using <strong className="text-foreground">{inviteData.email}</strong> to join your salon team.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Validating your invite link...
+              </p>
+            )}
           </div>
         )}
 
@@ -205,10 +279,16 @@ export default function Auth() {
           <Tabs defaultValue={defaultTab} className="w-full">
             <CardHeader className="pb-4">
               <TabsList className="grid w-full grid-cols-2 bg-muted/50">
-                <TabsTrigger value="signin" className="data-[state=active]:bg-card data-[state=active]:text-foreground">
+                <TabsTrigger
+                  value="signin"
+                  className="data-[state=active]:bg-card data-[state=active]:text-foreground"
+                >
                   Sign In
                 </TabsTrigger>
-                <TabsTrigger value="signup" className="data-[state=active]:bg-card data-[state=active]:text-foreground">
+                <TabsTrigger
+                  value="signup"
+                  className="data-[state=active]:bg-card data-[state=active]:text-foreground"
+                >
                   Create Account
                 </TabsTrigger>
               </TabsList>
@@ -219,19 +299,23 @@ export default function Auth() {
               <TabsContent value="signin" className="mt-0">
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signin-email" className="text-sm text-muted-foreground">Email</Label>
+                    <Label htmlFor="signin-email" className="text-sm text-muted-foreground">
+                      Email
+                    </Label>
                     <Input
                       id="signin-email"
                       name="email"
                       type="email"
                       placeholder="you@example.com"
-                      defaultValue={inviteEmail}
+                      defaultValue={inviteData?.email || ""}
                       required
                       className="h-12 bg-muted/50 border-border/50 focus:border-primary/50 input-glow"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signin-password" className="text-sm text-muted-foreground">Password</Label>
+                    <Label htmlFor="signin-password" className="text-sm text-muted-foreground">
+                      Password
+                    </Label>
                     <Input
                       id="signin-password"
                       name="password"
@@ -258,7 +342,9 @@ export default function Auth() {
 
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-name" className="text-sm text-muted-foreground">Full Name</Label>
+                    <Label htmlFor="signup-name" className="text-sm text-muted-foreground">
+                      Full Name
+                    </Label>
                     <Input
                       id="signup-name"
                       name="fullName"
@@ -269,25 +355,31 @@ export default function Auth() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-email" className="text-sm text-muted-foreground">Email</Label>
+                    <Label htmlFor="signup-email" className="text-sm text-muted-foreground">
+                      Email
+                    </Label>
                     <Input
                       id="signup-email"
                       name="email"
                       type="email"
                       placeholder="you@example.com"
-                      defaultValue={inviteEmail}
-                      readOnly={!!isInvite}
+                      defaultValue={inviteData?.email || ""}
+                      readOnly={isInvite && !!inviteData}
                       required
-                      className={`h-12 bg-muted/50 border-border/50 focus:border-primary/50 input-glow ${isInvite ? "opacity-70 cursor-not-allowed" : ""}`}
+                      className={`h-12 bg-muted/50 border-border/50 focus:border-primary/50 input-glow ${
+                        isInvite && inviteData ? "opacity-70 cursor-not-allowed" : ""
+                      }`}
                     />
-                    {isInvite && (
+                    {isInvite && inviteData && (
                       <p className="text-xs text-muted-foreground">
                         Use this email to be automatically linked to your salon
                       </p>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="signup-password" className="text-sm text-muted-foreground">Password</Label>
+                    <Label htmlFor="signup-password" className="text-sm text-muted-foreground">
+                      Password
+                    </Label>
                     <Input
                       id="signup-password"
                       name="password"
@@ -298,8 +390,19 @@ export default function Auth() {
                       className="h-12 bg-muted/50 border-border/50 focus:border-primary/50 input-glow"
                     />
                   </div>
-                  <Button type="submit" size="lg" className="w-full touch-target" disabled={isLoading}>
-                    {isLoading ? <LoadingSpinner size="sm" /> : isInvite ? "Join Team" : "Create Account"}
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full touch-target"
+                    disabled={isLoading || (isInvite && !inviteData)}
+                  >
+                    {isLoading ? (
+                      <LoadingSpinner size="sm" />
+                    ) : isInvite ? (
+                      "Join Team 💅"
+                    ) : (
+                      "Create Account"
+                    )}
                   </Button>
                 </form>
               </TabsContent>

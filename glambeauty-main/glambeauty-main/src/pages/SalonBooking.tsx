@@ -144,19 +144,29 @@ export default function SalonBooking() {
       }
     }
 
-    // Atomic RPC — no raw insert
+    if (!finalStylistId) {
+      toast({
+        variant: "destructive",
+        title: "No stylist available",
+        description: "No stylists are available for this slot. Please pick another time.",
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    // Atomic RPC — race condition proof
     const { error } = await supabase.rpc("book_slot_atomic", {
-      p_salon_id:     salon.id,
-      p_service_id:   selectedService.id,
-      p_stylist_id:   finalStylistId,
-      p_date:         format(selectedDate, "yyyy-MM-dd"),
-      p_start:        selectedTime,
-      p_end:          endTime,
-      p_client_id:    null,
-      p_client_name:  clientName,
-      p_client_phone: formattedPhone,
-      p_total:        selectedService.price,
-      p_deposit:      selectedService.deposit_amount,
+      p_salon_id:       salon.id,
+      p_service_id:     selectedService.id,
+      p_stylist_id:     finalStylistId,
+      p_date:           format(selectedDate, "yyyy-MM-dd"),
+      p_start_time:     selectedTime,
+      p_end_time:       endTime,
+      p_client_user_id: null,
+      p_client_name:    clientName,
+      p_client_phone:   formattedPhone,
+      p_total_amount:   selectedService.price,
+      p_deposit_amount: selectedService.deposit_amount,
     });
 
     setSubmitting(false);
@@ -165,7 +175,7 @@ export default function SalonBooking() {
       const isSlotTaken = error.message?.includes("SLOT_TAKEN") || error.code === "23505";
       toast({
         variant: "destructive",
-        title: isSlotTaken ? "Slot just taken" : "Booking failed",
+        title: isSlotTaken ? "Slot just taken!" : "Booking failed",
         description: isSlotTaken
           ? "That slot was just taken — pick another time"
           : error.message,
@@ -229,7 +239,11 @@ export default function SalonBooking() {
               ) : (
                 <div className="space-y-3">
                   {services.map((service) => (
-                    <ServiceCard key={service.id} service={service} onSelect={() => handleServiceSelect(service)} />
+                    <ServiceCard
+                      key={service.id}
+                      service={service}
+                      onSelect={() => handleServiceSelect(service)}
+                    />
                   ))}
                 </div>
               )}
@@ -259,10 +273,17 @@ export default function SalonBooking() {
             />
 
             <div className="flex gap-3 pt-4">
-              <Button variant="outline" onClick={() => setStep("services")} className="flex-1 h-14 touch-target">
+              <Button
+                variant="outline"
+                onClick={() => setStep("services")}
+                className="flex-1 h-14 touch-target"
+              >
                 <ArrowLeft className="mr-2 w-5 h-5" /> Back
               </Button>
-              <Button onClick={() => setStep("datetime")} className="flex-1 h-14 touch-target">
+              <Button
+                onClick={() => setStep("datetime")}
+                className="flex-1 h-14 touch-target"
+              >
                 Continue <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </div>
@@ -313,7 +334,11 @@ export default function SalonBooking() {
             )}
 
             <div className="flex gap-3 pt-4">
-              <Button variant="outline" onClick={() => setStep("stylist")} className="flex-1 h-14 touch-target">
+              <Button
+                variant="outline"
+                onClick={() => setStep("stylist")}
+                className="flex-1 h-14 touch-target"
+              >
                 <ArrowLeft className="mr-2 w-5 h-5" /> Back
               </Button>
               <Button
@@ -358,13 +383,21 @@ export default function SalonBooking() {
                     <span className="text-muted-foreground">Total</span>
                     <span className="font-bold text-gradient">{formatKES(selectedService.price)}</span>
                   </div>
+                  {selectedService.deposit_amount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Deposit due now</span>
+                      <span className="font-medium text-primary">{formatKES(selectedService.deposit_amount)}</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="clientName" className="text-sm text-muted-foreground">Your Name</Label>
+                <Label htmlFor="clientName" className="text-sm text-muted-foreground">
+                  Your Name
+                </Label>
                 <Input
                   id="clientName"
                   value={clientName}
@@ -386,16 +419,27 @@ export default function SalonBooking() {
                   className="h-12 bg-muted/50 border-border/50 focus:border-primary/50 input-glow"
                 />
                 {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
+                {clientPhone && !phoneError && validateKenyanPhone(clientPhone) && (
+                  <p className="text-xs text-green-500">✓ Valid M-Pesa number</p>
+                )}
               </div>
             </div>
 
             <div className="flex gap-3 pt-4">
-              <Button variant="outline" onClick={() => setStep("datetime")} className="flex-1 h-14 touch-target">
+              <Button
+                variant="outline"
+                onClick={() => setStep("datetime")}
+                className="flex-1 h-14 touch-target"
+              >
                 <ArrowLeft className="mr-2 w-5 h-5" /> Back
               </Button>
               <Button
                 onClick={handleSubmitBooking}
-                disabled={!clientName.trim() || !clientPhone.trim() || submitting}
+                disabled={
+                  !clientName.trim() ||
+                  !validateKenyanPhone(clientPhone) ||
+                  submitting
+                }
                 className="flex-1 h-14 touch-target"
               >
                 {submitting ? "Booking..." : "Confirm Booking"}
