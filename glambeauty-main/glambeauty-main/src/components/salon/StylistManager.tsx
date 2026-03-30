@@ -120,10 +120,10 @@ export function StylistManager({ salonId, salonName }: StylistManagerProps) {
 
     await supabase
       .from("stylist_working_hours")
-      .insert(workingHoursRows)
-      .onConflict("stylist_id, day_of_week")
-      // @ts-ignore — Supabase JS types don't expose onConflict ignore yet
-      .ignore();
+      .upsert(workingHoursRows, {
+        onConflict: "stylist_id,day_of_week",
+        ignoreDuplicates: true,
+      });
 
     return { stylistId: newStylistId };
   };
