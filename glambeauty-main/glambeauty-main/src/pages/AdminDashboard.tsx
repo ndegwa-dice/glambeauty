@@ -19,6 +19,9 @@ import { BroadcastManager } from "@/components/admin/BroadcastManager";
 import { Shield, Building2, Users, CalendarCheck, Megaphone, LogOut, Zap, Loader2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
+// Double lock — role check + exact email
+const ADMIN_EMAIL = "davidndegwa013@gmail.com";
+
 export default function AdminDashboard() {
   const { user, signOut } = useAuth();
   const { hasRole, loading } = useUserRole();
@@ -29,7 +32,7 @@ export default function AdminDashboard() {
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
-    if (!loading && (!user || !hasRole("admin"))) {
+    if (!loading && (!user || !hasRole("admin") || user.email !== ADMIN_EMAIL)) {
       navigate("/auth");
     }
   }, [user, loading, hasRole, navigate]);
@@ -56,7 +59,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!user || !hasRole("admin")) return null;
+  if (!user || !hasRole("admin") || user.email !== ADMIN_EMAIL) return null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -129,7 +132,9 @@ export default function AdminDashboard() {
               <AlertTriangle className="w-3.5 h-3.5" />
               Disputes
               {openCount > 0 && (
-                <Badge className="ml-1 h-5 min-w-[20px] px-1 text-[10px] bg-destructive text-destructive-foreground">{openCount}</Badge>
+                <Badge className="ml-1 h-5 min-w-[20px] px-1 text-[10px] bg-destructive text-destructive-foreground">
+                  {openCount}
+                </Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="broadcasts" className="gap-1.5">
@@ -185,7 +190,9 @@ function RecentBookingsWidget() {
           <span className="text-sm font-semibold text-foreground">KES {Number(b.total_amount).toLocaleString()}</span>
         </div>
       ))}
-      {bookings.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No bookings yet</p>}
+      {bookings.length === 0 && (
+        <p className="text-sm text-muted-foreground text-center py-4">No bookings yet</p>
+      )}
     </div>
   );
 }
