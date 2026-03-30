@@ -84,7 +84,7 @@ const handler = async (req: Request): Promise<Response> => {
               </p>
             </div>
           </div>
-          
+          <div > 
           <div style="padding: 20px 30px; text-align: center; border-top: 1px solid rgba(255,255,255,0.1);">
             <p style="margin: 0; font-size: 12px; color: #757575;">
               © GLAMOS — Your salon, your brand, your way
