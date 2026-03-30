@@ -212,13 +212,26 @@ export default function Auth() {
         description: "Your stylist dashboard is ready.",
       });
 
-      // Wait for role to propagate before navigating
-      // Prevents landing on /client before useUserRole picks up stylist role
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+// Poll until stylist role confirmed in DB before navigating
+let attempts = 0;
+let roleConfirmed = false;
 
-      setIsLoading(false);
-      navigate("/stylist", { replace: true });
-      return;
+while (attempts < 10 && !roleConfirmed) {
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const { data: roleCheck } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", newUser.id)
+    .eq("role", "stylist")
+    .single();
+  
+  if (roleCheck) roleConfirmed = true;
+  attempts++;
+}
+
+setIsLoading(false);
+navigate("/stylist", { replace: true });
+return;
     }
 
     // ── NORMAL SIGNUP PATH ────────────────────────────────────────
