@@ -24,7 +24,11 @@ export type Database = {
           deposit_amount: number
           end_time: string
           id: string
+          mpesa_checkout_request_id: string | null
+          mpesa_receipt_number: string | null
           notes: string | null
+          payment_confirmed_at: string | null
+          payment_initiated_at: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           salon_id: string
           service_id: string
@@ -43,7 +47,11 @@ export type Database = {
           deposit_amount?: number
           end_time: string
           id?: string
+          mpesa_checkout_request_id?: string | null
+          mpesa_receipt_number?: string | null
           notes?: string | null
+          payment_confirmed_at?: string | null
+          payment_initiated_at?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           salon_id: string
           service_id: string
@@ -62,7 +70,11 @@ export type Database = {
           deposit_amount?: number
           end_time?: string
           id?: string
+          mpesa_checkout_request_id?: string | null
+          mpesa_receipt_number?: string | null
           notes?: string | null
+          payment_confirmed_at?: string | null
+          payment_initiated_at?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           salon_id?: string
           service_id?: string
@@ -341,6 +353,7 @@ export type Database = {
           full_name: string | null
           id: string
           phone_number: string | null
+          phone_verified: boolean
           updated_at: string
           user_id: string
         }
@@ -350,6 +363,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone_number?: string | null
+          phone_verified?: boolean
           updated_at?: string
           user_id: string
         }
@@ -359,14 +373,65 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone_number?: string | null
+          phone_verified?: boolean
           updated_at?: string
           user_id?: string
         }
         Relationships: []
       }
+      salon_stylists: {
+        Row: {
+          commission_rate: number | null
+          created_at: string | null
+          id: string
+          invited_by: string | null
+          joined_at: string | null
+          left_at: string | null
+          salon_id: string
+          status: string | null
+          stylist_id: string
+        }
+        Insert: {
+          commission_rate?: number | null
+          created_at?: string | null
+          id?: string
+          invited_by?: string | null
+          joined_at?: string | null
+          left_at?: string | null
+          salon_id: string
+          status?: string | null
+          stylist_id: string
+        }
+        Update: {
+          commission_rate?: number | null
+          created_at?: string | null
+          id?: string
+          invited_by?: string | null
+          joined_at?: string | null
+          left_at?: string | null
+          salon_id?: string
+          status?: string | null
+          stylist_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "salon_stylists_salon_id_fkey"
+            columns: ["salon_id"]
+            isOneToOne: false
+            referencedRelation: "salons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "salon_stylists_stylist_id_fkey"
+            columns: ["stylist_id"]
+            isOneToOne: false
+            referencedRelation: "stylists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       salons: {
         Row: {
-          ad_tier: string | null
           address: string | null
           category: string | null
           city: string | null
@@ -374,8 +439,6 @@ export type Database = {
           created_at: string
           description: string | null
           email: string | null
-          featured_image_url: string | null
-          featured_until: string | null
           id: string
           is_active: boolean | null
           is_featured: boolean | null
@@ -389,7 +452,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          ad_tier?: string | null
           address?: string | null
           category?: string | null
           city?: string | null
@@ -397,8 +459,6 @@ export type Database = {
           created_at?: string
           description?: string | null
           email?: string | null
-          featured_image_url?: string | null
-          featured_until?: string | null
           id?: string
           is_active?: boolean | null
           is_featured?: boolean | null
@@ -412,7 +472,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          ad_tier?: string | null
           address?: string | null
           category?: string | null
           city?: string | null
@@ -420,8 +479,6 @@ export type Database = {
           created_at?: string
           description?: string | null
           email?: string | null
-          featured_image_url?: string | null
-          featured_until?: string | null
           id?: string
           is_active?: boolean | null
           is_featured?: boolean | null
@@ -443,7 +500,6 @@ export type Database = {
           description: string | null
           duration_minutes: number
           id: string
-          image_url: string | null
           is_active: boolean | null
           name: string
           price: number
@@ -457,7 +513,6 @@ export type Database = {
           description?: string | null
           duration_minutes?: number
           id?: string
-          image_url?: string | null
           is_active?: boolean | null
           name: string
           price: number
@@ -471,7 +526,6 @@ export type Database = {
           description?: string | null
           duration_minutes?: number
           id?: string
-          image_url?: string | null
           is_active?: boolean | null
           name?: string
           price?: number
@@ -511,6 +565,57 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "stylist_follows_stylist_id_fkey"
+            columns: ["stylist_id"]
+            isOneToOne: false
+            referencedRelation: "stylists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stylist_invites: {
+        Row: {
+          accepted: boolean
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          salon_id: string
+          stylist_id: string
+          token: string
+        }
+        Insert: {
+          accepted?: boolean
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          salon_id: string
+          stylist_id: string
+          token?: string
+        }
+        Update: {
+          accepted?: boolean
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          salon_id?: string
+          stylist_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stylist_invites_salon_id_fkey"
+            columns: ["salon_id"]
+            isOneToOne: false
+            referencedRelation: "salons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stylist_invites_stylist_id_fkey"
             columns: ["stylist_id"]
             isOneToOne: false
             referencedRelation: "stylists"
@@ -646,79 +751,93 @@ export type Database = {
           },
         ]
       }
+      stylist_working_hours: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          id: string
+          is_off: boolean
+          stylist_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          id?: string
+          is_off?: boolean
+          stylist_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          is_off?: boolean
+          stylist_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stylist_working_hours_stylist_id_fkey"
+            columns: ["stylist_id"]
+            isOneToOne: false
+            referencedRelation: "stylists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stylists: {
         Row: {
-          availability_status:
-            | Database["public"]["Enums"]["availability_status"]
-            | null
           avatar_url: string | null
           bio: string | null
-          cover_image_url: string | null
+          cover_url: string | null
           created_at: string
           email: string | null
-          followers_count: number | null
           id: string
-          instagram_handle: string | null
           invitation_status: string | null
           invited_at: string | null
           is_active: boolean | null
+          is_independent: boolean | null
+          location: string | null
           name: string
           phone_number: string | null
-          rating_avg: number | null
-          rating_count: number | null
-          salon_id: string
-          specialty: string | null
-          total_clients_served: number | null
+          salon_id: string | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
-          availability_status?:
-            | Database["public"]["Enums"]["availability_status"]
-            | null
           avatar_url?: string | null
           bio?: string | null
-          cover_image_url?: string | null
+          cover_url?: string | null
           created_at?: string
           email?: string | null
-          followers_count?: number | null
           id?: string
-          instagram_handle?: string | null
           invitation_status?: string | null
           invited_at?: string | null
           is_active?: boolean | null
+          is_independent?: boolean | null
+          location?: string | null
           name: string
           phone_number?: string | null
-          rating_avg?: number | null
-          rating_count?: number | null
-          salon_id: string
-          specialty?: string | null
-          total_clients_served?: number | null
+          salon_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
-          availability_status?:
-            | Database["public"]["Enums"]["availability_status"]
-            | null
           avatar_url?: string | null
           bio?: string | null
-          cover_image_url?: string | null
+          cover_url?: string | null
           created_at?: string
           email?: string | null
-          followers_count?: number | null
           id?: string
-          instagram_handle?: string | null
           invitation_status?: string | null
           invited_at?: string | null
           is_active?: boolean | null
+          is_independent?: boolean | null
+          location?: string | null
           name?: string
           phone_number?: string | null
-          rating_avg?: number | null
-          rating_count?: number | null
-          salon_id?: string
-          specialty?: string | null
-          total_clients_served?: number | null
+          salon_id?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -731,48 +850,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      user_calendar_sync: {
-        Row: {
-          access_token: string | null
-          calendar_id: string | null
-          created_at: string
-          id: string
-          is_active: boolean | null
-          last_synced_at: string | null
-          provider: string
-          refresh_token: string | null
-          token_expires_at: string | null
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          access_token?: string | null
-          calendar_id?: string | null
-          created_at?: string
-          id?: string
-          is_active?: boolean | null
-          last_synced_at?: string | null
-          provider?: string
-          refresh_token?: string | null
-          token_expires_at?: string | null
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          access_token?: string | null
-          calendar_id?: string | null
-          created_at?: string
-          id?: string
-          is_active?: boolean | null
-          last_synced_at?: string | null
-          provider?: string
-          refresh_token?: string | null
-          token_expires_at?: string | null
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
       }
       user_notifications: {
         Row: {
@@ -885,6 +962,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      book_slot_atomic: {
+        Args: {
+          p_client_name?: string
+          p_client_phone?: string
+          p_client_user_id?: string
+          p_date: string
+          p_deposit_amount?: number
+          p_end_time: string
+          p_salon_id: string
+          p_service_id: string
+          p_start_time: string
+          p_stylist_id: string
+          p_total_amount?: number
+        }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -899,7 +992,6 @@ export type Database = {
     }
     Enums: {
       app_role: "salon_owner" | "stylist" | "client" | "admin"
-      availability_status: "available" | "busy" | "away"
       booking_status:
         | "pending"
         | "confirmed"
@@ -1040,7 +1132,6 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["salon_owner", "stylist", "client", "admin"],
-      availability_status: ["available", "busy", "away"],
       booking_status: [
         "pending",
         "confirmed",

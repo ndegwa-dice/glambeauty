@@ -28,7 +28,7 @@ export function useDiscoverSalons(category: SalonCategory = "all") {
         .from("salons")
         .select("id, name, slug, description, address, city, logo_url, cover_image_url, phone_number, category")
         .eq("is_active", true)
-        .eq("is_verified", true)
+      
         .order("created_at", { ascending: false });
 
       // Filter by category if not "all"
