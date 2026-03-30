@@ -85,14 +85,16 @@ export default function Auth() {
   }, [inviteToken, isInvite]);
 
   // Redirect logged-in users based on role
+  // Skip if we're mid-signup to prevent race condition
   useEffect(() => {
+    if (isLoading) return;
     if (user && !roleLoading && primaryRole) {
       if (primaryRole === "admin") navigate("/admin");
       else if (primaryRole === "salon_owner") navigate("/dashboard");
       else if (primaryRole === "stylist") navigate("/stylist");
       else navigate("/client");
     }
-  }, [user, primaryRole, roleLoading, navigate]);
+  }, [user, primaryRole, roleLoading, navigate, isLoading]);
 
   const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -210,8 +212,12 @@ export default function Auth() {
         description: "Your stylist dashboard is ready.",
       });
 
+      // Wait for role to propagate before navigating
+      // Prevents landing on /client before useUserRole picks up stylist role
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
       setIsLoading(false);
-      navigate("/stylist");
+      navigate("/stylist", { replace: true });
       return;
     }
 
@@ -264,7 +270,8 @@ export default function Auth() {
             </div>
             {inviteData ? (
               <p className="text-sm text-muted-foreground">
-                Create your account using <strong className="text-foreground">{inviteData.email}</strong> to join your salon team.
+                Create your account using{" "}
+                <strong className="text-foreground">{inviteData.email}</strong> to join your salon team.
               </p>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -325,7 +332,12 @@ export default function Auth() {
                       className="h-12 bg-muted/50 border-border/50 focus:border-primary/50 input-glow"
                     />
                   </div>
-                  <Button type="submit" size="lg" className="w-full touch-target" disabled={isLoading}>
+                  <Button
+                    type="submit"
+                    size="lg"
+                    className="w-full touch-target"
+                    disabled={isLoading}
+                  >
                     {isLoading ? <LoadingSpinner size="sm" /> : "Sign In"}
                   </Button>
                 </form>
