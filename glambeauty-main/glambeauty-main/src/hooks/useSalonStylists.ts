@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
@@ -22,7 +22,7 @@ export function useSalonStylists(salonId: string | null): UseSalonStylistsReturn
   const [stylists, setStylists] = useState<StylistWithServices[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchStylists = async () => {
+  const fetchStylists = useCallback(async () => {
     if (!salonId) return;
 
     const { data: stylistsData } = await supabase
@@ -38,7 +38,7 @@ export function useSalonStylists(salonId: string | null): UseSalonStylistsReturn
     }
 
     const { data: serviceAssignments } = await supabase
-      .from("tylist_services")
+      .from("stylist_services")
       .select("stylist_id, service_id")
       .in("stylist_id", stylistsData.map((s) => s.id));
 
@@ -51,7 +51,7 @@ export function useSalonStylists(salonId: string | null): UseSalonStylistsReturn
 
     setStylists(stylistsWithServices);
     setLoading(false);
-  };
+  }, [salonId]);
 
   useEffect(() => {
     if (!salonId) {
@@ -81,7 +81,7 @@ export function useSalonStylists(salonId: string | null): UseSalonStylistsReturn
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [salonId]);
+  }, [salonId, fetchStylists]);
 
   const addStylist = async (
     stylist: Omit<StylistInsert, "salon_id">,
@@ -117,6 +117,9 @@ export function useSalonStylists(salonId: string | null): UseSalonStylistsReturn
       );
     }
 
+    // Refetch to update UI immediately
+    await fetchStylists();
+
     return { error: null, id: data.id };
   };
 
@@ -133,8 +136,10 @@ export function useSalonStylists(salonId: string | null): UseSalonStylistsReturn
     if (error) return { error };
 
     if (serviceIds !== undefined) {
+      // Clear existing service assignments
       await supabase.from("stylist_services").delete().eq("stylist_id", id);
 
+      // Insert new ones
       if (serviceIds.length > 0) {
         await supabase.from("stylist_services").insert(
           serviceIds.map((serviceId) => ({
@@ -145,12 +150,19 @@ export function useSalonStylists(salonId: string | null): UseSalonStylistsReturn
       }
     }
 
+    // Refetch to update UI immediately
+    await fetchStylists();
+
     return { error: null };
   };
 
   const deleteStylist = async (id: string): Promise<{ error: Error | null }> => {
     await supabase.from("stylist_services").delete().eq("stylist_id", id);
     const { error } = await supabase.from("stylists").delete().eq("id", id);
+
+    // Refetch to update UI
+    await fetchStylists();
+
     return { error };
   };
 
