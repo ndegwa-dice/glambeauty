@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { CountdownRing } from "@/components/ui/countdown-ring";
 import { TimeSlotPicker } from "@/components/booking/TimeSlotPicker";
 import { StylistPicker } from "@/components/booking/StylistPicker";
 import {
@@ -31,12 +32,15 @@ import {
   PartyPopper,
   Crown,
   Star,
+  Smartphone,
+  RefreshCw,
+  X,
 } from "lucide-react";
 import type { DiscoverSalon } from "@/hooks/useDiscoverSalons";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Service = Tables<"services">;
-type BookingStep = "services" | "stylist" | "datetime" | "confirm" | "success";
+type BookingStep = "services" | "stylist" | "datetime" | "confirm" | "payment" | "success";
 
 interface BookingSheetProps {
   salon: DiscoverSalon | null;
@@ -50,10 +54,11 @@ const STEP_CONFIG: Record<BookingStep, { emoji: string; title: string; subtitle:
   stylist: { emoji: "✨", title: "Pick Your Artist", subtitle: "Who's creating your masterpiece?" },
   datetime: { emoji: "📅", title: "Pick Your Moment", subtitle: "When's your glow-up happening?" },
   confirm: { emoji: "👑", title: "Almost There!", subtitle: "Review your fabulous booking" },
+  payment: { emoji: "📱", title: "Check Your Phone", subtitle: "Complete your M-Pesa deposit" },
   success: { emoji: "🎉", title: "You're Booked!", subtitle: "Get ready to look amazing!" },
 };
 
-const STEPS_ORDER: BookingStep[] = ["services", "stylist", "datetime", "confirm"];
+const STEPS_ORDER: BookingStep[] = ["services", "stylist", "datetime", "confirm", "payment"];
 
 export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSheetProps) {
   const { user, profile } = useAuth();
@@ -70,6 +75,11 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [phoneInput, setPhoneInput] = useState("");
+  const [currentBookingId, setCurrentBookingId] = useState<string | null>(null);
+  const [paymentPhone, setPaymentPhone] = useState<string | null>(null);
+  const [paymentTimeLeft, setPaymentTimeLeft] = useState(60);
+  const [paymentExpired, setPaymentExpired] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const { slots, loading: slotsLoading } = useAvailableSlots({
     salonId: salon?.id || "",
@@ -104,6 +114,10 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
         setSelectedDate(undefined);
         setSelectedTime(null);
         setPhoneInput("");
+        setCurrentBookingId(null);
+        setPaymentPhone(null);
+        setPaymentTimeLeft(60);
+        setPaymentExpired(false);
       }, 300);
     }
   }, [open]);
@@ -117,6 +131,82 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     fetchStylistName();
   }, [selectedStylistId]);
 
+  // Payment countdown timer
+  useEffect(() => {
+    if (step !== "payment") return;
+    setPaymentTimeLeft(60);
+    setPaymentExpired(false);
+
+    const timer = setInterval(() => {
+      setPaymentTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setPaymentExpired(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [step, currentBookingId]);
+
+  // Realtime subscription + polling fallback
+  useEffect(() => {
+    if (step !== "payment" || !currentBookingId) return;
+
+    const channel = supabase
+      .channel(`payment_${currentBookingId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "bookings",
+          filter: `id=eq.${currentBookingId}`,
+        },
+        (payload) => {
+          const updated = payload.new as any;
+          if (updated.payment_status === "completed") {
+            setStep("success");
+            onSuccess?.();
+          } else if (updated.payment_status === "failed") {
+            setPaymentExpired(true);
+            toast({
+              variant: "destructive",
+              title: "Payment failed",
+              description: "M-Pesa payment was not completed. Tap retry to try again.",
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    // Polling fallback every 5 seconds for 90 seconds
+    let pollCount = 0;
+    const poll = setInterval(async () => {
+      pollCount++;
+      if (pollCount > 18) { clearInterval(poll); return; }
+
+      const { data } = await supabase
+        .from("bookings")
+        .select("payment_status")
+        .eq("id", currentBookingId)
+        .single();
+
+      if (data?.payment_status === "completed") {
+        clearInterval(poll);
+        setStep("success");
+        onSuccess?.();
+      }
+    }, 5000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(poll);
+    };
+  }, [step, currentBookingId]);
+
   const currentStepIndex = STEPS_ORDER.indexOf(step);
   const progressPercent = step === "success" ? 100 : ((currentStepIndex + 1) / STEPS_ORDER.length) * 100;
 
@@ -126,6 +216,17 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   };
 
   const handleStylistContinue = () => setStep("datetime");
+
+  const initiatePayment = async (bookingId: string, phone: string, amount: number) => {
+    const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
+      "initiate-mpesa-payment",
+      { body: { bookingId, phone, amount } }
+    );
+    if (paymentError || !paymentData?.success) {
+      throw new Error(paymentData?.error || "Could not send M-Pesa prompt");
+    }
+    return paymentData;
+  };
 
   const handleConfirmBooking = async () => {
     if (!salon || !selectedService || !selectedDate || !selectedTime || !user) return;
@@ -142,7 +243,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
     const formattedPhone = formatToMpesa(phoneSource)!;
 
-    // Save phone to profile if it was entered inline
     if (!profile?.phone_number && phoneInput) {
       await supabase
         .from("profiles")
@@ -186,7 +286,8 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       return;
     }
 
-    const { error } = await supabase.rpc("book_slot_atomic", {
+    // Step 1: Reserve slot atomically
+    const { data: bookingId, error: bookingError } = await supabase.rpc("book_slot_atomic", {
       p_salon_id:       salon.id,
       p_service_id:     selectedService.id,
       p_stylist_id:     finalStylistId,
@@ -200,26 +301,66 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       p_deposit_amount: selectedService.deposit_amount,
     });
 
-    setSubmitting(false);
-
-    if (error) {
-      const isSlotTaken = error.message?.includes("SLOT_TAKEN") || error.code === "23505";
+    if (bookingError) {
+      const isSlotTaken = bookingError.message?.includes("SLOT_TAKEN") || bookingError.code === "23505";
       toast({
         variant: "destructive",
         title: isSlotTaken ? "Slot just taken!" : "Booking failed",
         description: isSlotTaken
           ? "That slot was just taken — pick another time"
-          : error.message,
+          : bookingError.message,
       });
       if (isSlotTaken) {
         setSelectedTime(null);
         setStep("datetime");
       }
+      setSubmitting(false);
       return;
     }
 
-    setStep("success");
-    onSuccess?.();
+    // Step 2: Trigger STK Push
+    try {
+      await initiatePayment(bookingId, formattedPhone, selectedService.deposit_amount);
+      setCurrentBookingId(bookingId);
+      setPaymentPhone(formattedPhone);
+      setStep("payment");
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Payment initiation failed",
+        description: err.message || "Could not send M-Pesa prompt. Please try again.",
+      });
+    }
+
+    setSubmitting(false);
+  };
+
+  const handleRetryPayment = async () => {
+    if (!currentBookingId || !paymentPhone || !selectedService) return;
+    setRetrying(true);
+    setPaymentExpired(false);
+
+    try {
+      await initiatePayment(currentBookingId, paymentPhone, selectedService.deposit_amount);
+      setPaymentTimeLeft(60);
+      toast({ title: "M-Pesa prompt resent! 📱", description: "Check your phone." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Retry failed", description: err.message });
+    }
+
+    setRetrying(false);
+  };
+
+  const handleCancelPayment = async () => {
+    if (currentBookingId) {
+      await supabase
+        .from("bookings")
+        .update({ status: "cancelled", payment_status: "cancelled" })
+        .eq("id", currentBookingId);
+    }
+    setStep("confirm");
+    setCurrentBookingId(null);
+    setPaymentPhone(null);
   };
 
   const stepConfig = STEP_CONFIG[step];
@@ -266,7 +407,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                                 {service.duration_minutes} min
                               </span>
                               {service.deposit_amount > 0 && (
-                                <span className="text-xs text-primary">
+                                <span className="text-xs text-primary font-medium">
                                   {formatKES(service.deposit_amount)} deposit
                                 </span>
                               )}
@@ -429,16 +570,24 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center pt-4 border-t border-border/30">
-                  <span className="font-display font-semibold">Total</span>
-                  <span className="font-display font-bold text-gradient text-xl">
-                    {formatKES(selectedService?.price ?? 0)}
-                  </span>
+                <div className="border-t border-border/30 pt-4 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Deposit due now</span>
+                    <span className="font-bold text-primary text-xl">
+                      {formatKES(selectedService?.deposit_amount ?? 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Balance on the day</span>
+                    <span className="font-medium text-foreground">
+                      {formatKES((selectedService?.price ?? 0) - (selectedService?.deposit_amount ?? 0))}
+                    </span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Phone gate — only shows if no valid phone on profile */}
+            {/* Phone gate */}
             {!validateKenyanPhone(profile?.phone_number || "") && (
               <div className="space-y-2 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
                 <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
@@ -464,8 +613,10 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                 <Crown className="w-5 h-5 text-primary-foreground" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">You deserve this, queen! 👑</p>
-                <p className="text-xs text-muted-foreground">One tap away from your next glow-up</p>
+                <p className="text-sm font-medium text-foreground">Secure your slot now 👑</p>
+                <p className="text-xs text-muted-foreground">
+                  Pay deposit via M-Pesa — balance paid at the salon on the day
+                </p>
               </div>
             </div>
 
@@ -485,12 +636,73 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                   <LoadingSpinner size="sm" />
                 ) : (
                   <>
-                    <PartyPopper className="w-5 h-5 mr-2" />
-                    Book It! 💅
+                    <Smartphone className="w-5 h-5 mr-2" />
+                    Pay {formatKES(selectedService?.deposit_amount ?? 0)} via M-Pesa
                   </>
                 )}
               </Button>
             </div>
+          </div>
+        );
+
+      case "payment":
+        return (
+          <div className="flex flex-col items-center justify-center py-6 animate-fade-in text-center space-y-6">
+            {/* Phone display */}
+            <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30 w-full">
+              <p className="text-sm text-muted-foreground">M-Pesa prompt sent to</p>
+              <p className="font-bold text-foreground text-lg mt-1">{paymentPhone}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Amount: <span className="font-bold text-primary">{formatKES(selectedService?.deposit_amount ?? 0)}</span>
+              </p>
+            </div>
+
+            {/* Countdown or expired state */}
+            {!paymentExpired ? (
+              <div className="space-y-3">
+                <CountdownRing
+                  duration={60}
+                  timeLeft={paymentTimeLeft}
+                  size={120}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Enter your M-Pesa PIN on your phone to complete payment
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 w-full">
+                <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30">
+                  <p className="text-sm font-medium text-destructive">Payment window expired</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your slot is held for a few more minutes
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleRetryPayment}
+                  disabled={retrying}
+                  className="w-full h-12 btn-premium"
+                >
+                  {retrying ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Resend M-Pesa Prompt
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+
+            <Button
+              variant="ghost"
+              onClick={handleCancelPayment}
+              className="text-muted-foreground text-sm gap-2"
+            >
+              <X className="w-4 h-4" />
+              Cancel booking
+            </Button>
           </div>
         );
 
@@ -517,7 +729,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                 You're All Set, Queen! 👑
               </h3>
               <p className="text-muted-foreground max-w-xs mx-auto">
-                Your glow-up is officially on the calendar. Get ready to look absolutely stunning!
+                Deposit paid. Your slot is confirmed. Get ready to look absolutely stunning!
               </p>
             </div>
 
@@ -534,6 +746,14 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Where</span>
                   <span>{salon?.name}</span>
+                </div>
+                <div className="flex justify-between text-sm border-t border-border/30 pt-2">
+                  <span className="text-muted-foreground">Deposit paid</span>
+                  <span className="font-bold text-green-500">{formatKES(selectedService?.deposit_amount ?? 0)} ✓</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Balance on the day</span>
+                  <span className="font-medium">{formatKES((selectedService?.price ?? 0) - (selectedService?.deposit_amount ?? 0))}</span>
                 </div>
               </CardContent>
             </Card>
@@ -570,7 +790,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               <p className="text-sm text-muted-foreground">{stepConfig.subtitle}</p>
             </div>
           </div>
-          {step !== "success" && salon && (
+          {step !== "success" && step !== "payment" && salon && (
             <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
               <MapPin className="w-3 h-3" />
               {salon.name}
