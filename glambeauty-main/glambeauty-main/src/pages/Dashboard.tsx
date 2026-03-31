@@ -19,17 +19,19 @@ import { StylistManager } from "@/components/salon/StylistManager";
 import { WorkingHoursManager } from "@/components/salon/WorkingHoursManager";
 import { SalonBrandManager } from "@/components/salon/SalonBrandManager";
 import { AnalyticsDashboard } from "@/components/salon/AnalyticsDashboard";
-import { 
-  Calendar, 
-  Users, 
-  DollarSign, 
-  Plus, 
+import {
+  Calendar,
+  Users,
+  DollarSign,
+  Plus,
   LogOut,
   Sparkles,
-  Link as LinkIcon
+  Link as LinkIcon,
+  ShieldCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { formatKES } from "@/lib/currency";
 
 interface Salon {
   id: string;
@@ -48,51 +50,35 @@ export default function Dashboard() {
   const [salon, setSalon] = useState<Salon | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [activeTab, setActiveTab] = useState<DashboardTab>("today");
-  
-  // Calendar state
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
 
-  // Use the new salon bookings hook
-  const { bookingsByDate, bookingCounts, loading: bookingsLoading } = useSalonBookings({
-    salonId: salon?.id || "",
-    weekStart,
-  });
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [weekStart, setWeekStart] = useState<Date>(() =>
+    startOfWeek(new Date(), { weekStartsOn: 1 })
+  );
+
+  const { bookingsByDate, bookingCounts, revenueSummary, loading: bookingsLoading } =
+    useSalonBookings({ salonId: salon?.id || "", weekStart });
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
+    if (!loading && !user) navigate("/auth");
   }, [loading, user, navigate]);
 
-  // Redirect clients to their dashboard
   useEffect(() => {
-    if (!roleLoading && user && !hasRole("salon_owner")) {
-      navigate("/client");
-    }
+    if (!roleLoading && user && !hasRole("salon_owner")) navigate("/client");
   }, [roleLoading, user, hasRole, navigate]);
 
   useEffect(() => {
     async function fetchData() {
       if (!user) return;
-
-      // Fetch user's salon
       const { data: salonData } = await supabase
         .from("salons")
         .select("*")
         .eq("owner_id", user.id)
         .single();
-
-      if (salonData) {
-        setSalon(salonData);
-      }
-
+      if (salonData) setSalon(salonData);
       setLoadingData(false);
     }
-
-    if (user) {
-      fetchData();
-    }
+    if (user) fetchData();
   }, [user]);
 
   const handleSignOut = async () => {
@@ -103,62 +89,84 @@ export default function Dashboard() {
   const copyBookingLink = () => {
     if (salon) {
       navigator.clipboard.writeText(`${window.location.origin}/salon/${salon.slug}`);
-      toast({
-        title: "Link copied!",
-        description: "Share this link with your clients",
-      });
+      toast({ title: "Link copied!", description: "Share this link with your clients" });
     }
   };
 
   const handleConfirmBooking = async (bookingId: string) => {
-    await supabase.from("bookings").update({ status: "confirmed" }).eq("id", bookingId);
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "confirmed" })
+      .eq("id", bookingId);
+    if (error) {
+      toast({ variant: "destructive", title: "Failed to confirm", description: error.message });
+      return;
+    }
     toast({ title: "Booking confirmed! ✨" });
   };
 
   const handleCompleteBooking = async (bookingId: string) => {
-    await supabase.from("bookings").update({ status: "completed" }).eq("id", bookingId);
-    toast({ title: "Booking completed! 💅" });
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "completed" })
+      .eq("id", bookingId);
+    if (error) {
+      toast({ variant: "destructive", title: "Failed to complete", description: error.message });
+      return;
+    }
+    toast({ title: "Booking completed! 💅 Remember to collect the balance." });
   };
 
   const handleCancelBooking = async (bookingId: string) => {
-    await supabase.from("bookings").update({ status: "cancelled" }).eq("id", bookingId);
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "cancelled" })
+      .eq("id", bookingId);
+    if (error) {
+      toast({ variant: "destructive", title: "Failed to cancel", description: error.message });
+      return;
+    }
     toast({ title: "Booking cancelled" });
+  };
+
+  const handleNoShow = async (bookingId: string) => {
+    const { error } = await supabase
+      .from("bookings")
+      .update({ status: "no_show" })
+      .eq("id", bookingId);
+    if (error) {
+      toast({ variant: "destructive", title: "Failed to mark no-show", description: error.message });
+      return;
+    }
+    toast({
+      title: "Marked as no-show",
+      description: "The deposit has been forfeited per cancellation policy.",
+    });
   };
 
   if (loading || loadingData || roleLoading) {
     return <LoadingScreen message="Loading your dashboard..." />;
   }
 
-  // If no salon, redirect to onboarding
   if (!salon) {
     return (
-      <MobileLayout
-        header={<PageHeader title="Welcome" />}
-      >
+      <MobileLayout header={<PageHeader title="Welcome" />}>
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center relative">
-          {/* Ambient glow */}
           <div className="fixed inset-0 pointer-events-none overflow-hidden">
             <div className="absolute top-1/3 left-1/4 w-64 h-64 rounded-full bg-primary/10 blur-[100px]" />
             <div className="absolute bottom-1/3 right-1/4 w-64 h-64 rounded-full bg-secondary/10 blur-[100px]" />
           </div>
-
           <div className="relative inline-block mb-6">
             <div className="w-20 h-20 rounded-2xl gradient-primary flex items-center justify-center glow-pink">
               <Plus className="w-10 h-10 text-primary-foreground" />
             </div>
             <Sparkles className="absolute -top-2 -right-2 w-6 h-6 text-primary animate-pulse-soft" />
           </div>
-          <h2 className="font-display text-2xl font-bold text-foreground mb-2">
-            Create Your Salon
-          </h2>
+          <h2 className="font-display text-2xl font-bold text-foreground mb-2">Create Your Salon</h2>
           <p className="text-muted-foreground mb-8 max-w-xs">
             Let's set up your salon profile so clients can start booking
           </p>
-          <Button 
-            onClick={() => navigate("/onboarding")}
-            size="lg"
-            className="touch-target"
-          >
+          <Button onClick={() => navigate("/onboarding")} size="lg" className="touch-target">
             Get Started
           </Button>
         </div>
@@ -166,11 +174,8 @@ export default function Dashboard() {
     );
   }
 
-  // Get bookings for selected date
   const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
   const selectedDayBookings = bookingsByDate[selectedDateStr] || [];
-
-  // Calculate stats from current week
   const allBookings = Object.values(bookingsByDate).flat();
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayBookings = bookingsByDate[todayStr] || [];
@@ -193,7 +198,7 @@ export default function Dashboard() {
                   <p className="text-xs text-muted-foreground">Today</p>
                 </CardContent>
               </Card>
-              
+
               <Card className="card-glass">
                 <CardContent className="p-4 text-center">
                   <div className="w-10 h-10 rounded-lg bg-secondary/10 flex items-center justify-center mx-auto mb-2">
@@ -205,7 +210,7 @@ export default function Dashboard() {
                   <p className="text-xs text-muted-foreground">Confirmed</p>
                 </CardContent>
               </Card>
-              
+
               <Card className="card-glass">
                 <CardContent className="p-4 text-center">
                   <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center mx-auto mb-2">
@@ -218,6 +223,32 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Revenue strip — deposits collected this week */}
+            {revenueSummary.depositCollected > 0 && (
+              <Card className="card-glass border-green-500/20">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <ShieldCheck className="w-4 h-4 text-green-400" />
+                    <span className="text-sm font-semibold text-green-400">This Week's Deposits</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div>
+                      <p className="font-bold text-foreground">{formatKES(revenueSummary.depositCollected)}</p>
+                      <p className="text-xs text-muted-foreground">Your share</p>
+                    </div>
+                    <div>
+                      <p className="font-bold text-primary">{formatKES(revenueSummary.balanceDue)}</p>
+                      <p className="text-xs text-muted-foreground">Balance due</p>
+                    </div>
+                    <div>
+                      <p className="font-bold text-amber-400">{formatKES(revenueSummary.pendingDeposits)}</p>
+                      <p className="text-xs text-muted-foreground">Awaiting</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Calendar */}
             <SalonCalendar
@@ -235,6 +266,7 @@ export default function Dashboard() {
               onConfirm={handleConfirmBooking}
               onComplete={handleCompleteBooking}
               onCancel={handleCancelBooking}
+              onNoShow={handleNoShow}
             />
 
             {/* Booking Link */}
@@ -265,10 +297,7 @@ export default function Dashboard() {
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
             />
-            <CalendarTimeline
-              date={selectedDate}
-              bookings={selectedDayBookings}
-            />
+            <CalendarTimeline date={selectedDate} bookings={selectedDayBookings} />
           </div>
         );
 
@@ -290,8 +319,11 @@ export default function Dashboard() {
               logoUrl={salon.logo_url}
               coverImageUrl={salon.cover_image_url}
               onUpdate={() => {
-                // Refetch salon data
-                supabase.from("salons").select("*").eq("owner_id", user!.id).single()
+                supabase
+                  .from("salons")
+                  .select("*")
+                  .eq("owner_id", user!.id)
+                  .single()
                   .then(({ data }) => { if (data) setSalon(data); });
               }}
             />
@@ -307,12 +339,12 @@ export default function Dashboard() {
   return (
     <MobileLayout
       header={
-        <PageHeader 
+        <PageHeader
           title={salon.name}
           subtitle="Dashboard"
           rightAction={
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="icon"
               onClick={handleSignOut}
               className="touch-target text-muted-foreground hover:text-foreground"
@@ -324,21 +356,16 @@ export default function Dashboard() {
       }
     >
       <div className="p-4 space-y-4 relative">
-        {/* Ambient glow */}
         <div className="fixed inset-0 pointer-events-none overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-primary/5 blur-[100px]" />
           <div className="absolute bottom-1/3 left-0 w-64 h-64 rounded-full bg-secondary/5 blur-[100px]" />
         </div>
 
-        {/* Tabs */}
         <div className="relative z-10">
           <DashboardTabs activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
 
-        {/* Tab Content */}
-        <div className="relative z-10">
-          {renderTabContent()}
-        </div>
+        <div className="relative z-10">{renderTabContent()}</div>
       </div>
     </MobileLayout>
   );

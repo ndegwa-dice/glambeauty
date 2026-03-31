@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { format, addDays } from "date-fns";
 import type { Database } from "@/integrations/supabase/types";
 
 type BookingStatus = Database["public"]["Enums"]["booking_status"];
@@ -11,6 +11,7 @@ export interface SalonBookingWithDetails {
   start_time: string;
   end_time: string;
   status: BookingStatus;
+  payment_status: string;
   client_name: string;
   client_phone: string;
   service_name: string;
@@ -18,6 +19,10 @@ export interface SalonBookingWithDetails {
   stylist_name: string | null;
   stylist_avatar: string | null;
   total_amount: number;
+  deposit_amount: number;
+  glamos_commission: number;
+  salon_payout: number;
+  mpesa_receipt_number: string | null;
 }
 
 interface UseSalonBookingsProps {
@@ -47,9 +52,14 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
         start_time,
         end_time,
         status,
+        payment_status,
         client_name,
         client_phone,
         total_amount,
+        deposit_amount,
+        glamos_commission,
+        salon_payout,
+        mpesa_receipt_number,
         stylist_id,
         service:services(name),
         stylist:stylists(name, avatar_url)
@@ -57,7 +67,14 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
       .eq("salon_id", salonId)
       .gte("booking_date", startDate)
       .lte("booking_date", endDate)
+      .order("booking_date", { ascending: true })
       .order("start_time", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching bookings:", error);
+      setLoading(false);
+      return;
+    }
 
     if (data) {
       setBookings(
@@ -67,9 +84,14 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
           start_time: b.start_time,
           end_time: b.end_time,
           status: b.status,
+          payment_status: b.payment_status || "pending",
           client_name: b.client_name,
           client_phone: b.client_phone,
-          total_amount: b.total_amount,
+          total_amount: Number(b.total_amount || 0),
+          deposit_amount: Number(b.deposit_amount || 0),
+          glamos_commission: Number(b.glamos_commission || 0),
+          salon_payout: Number(b.salon_payout || 0),
+          mpesa_receipt_number: b.mpesa_receipt_number || null,
           stylist_id: b.stylist_id,
           service_name: (b.service as { name: string } | null)?.name || "Service",
           stylist_name: (b.stylist as { name: string; avatar_url: string | null } | null)?.name || null,
@@ -84,9 +106,8 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
   useEffect(() => {
     fetchBookings();
 
-    // Real-time subscription
     const channel = supabase
-      .channel(`salon_bookings_range_${salonId}_${startDate}`)
+      .channel(`salon_bookings_${salonId}_${startDate}`)
       .on(
         "postgres_changes",
         {
@@ -118,9 +139,14 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
     return grouped;
   }, [bookings]);
 
-  // Get booking counts per day
+  // Booking counts per day
   const bookingCounts = useMemo(() => {
-    const counts: Record<string, { total: number; pending: number; confirmed: number; completed: number }> = {};
+    const counts: Record<string, {
+      total: number;
+      pending: number;
+      confirmed: number;
+      completed: number;
+    }> = {};
     bookings.forEach((booking) => {
       if (!counts[booking.booking_date]) {
         counts[booking.booking_date] = { total: 0, pending: 0, confirmed: 0, completed: 0 };
@@ -133,5 +159,29 @@ export function useSalonBookings({ salonId, weekStart }: UseSalonBookingsProps) 
     return counts;
   }, [bookings]);
 
-  return { bookings, bookingsByDate, bookingCounts, loading, refetch: fetchBookings };
+  // Revenue summary
+  const revenueSummary = useMemo(() => {
+    const depositCollected = bookings
+      .filter((b) => b.payment_status === "completed")
+      .reduce((sum, b) => sum + b.salon_payout, 0);
+
+    const pendingDeposits = bookings
+      .filter((b) => b.payment_status === "pending" && b.deposit_amount > 0)
+      .reduce((sum, b) => sum + b.deposit_amount, 0);
+
+    const balanceDue = bookings
+      .filter((b) => b.status === "confirmed" && b.payment_status === "completed")
+      .reduce((sum, b) => sum + (b.total_amount - b.deposit_amount), 0);
+
+    return { depositCollected, pendingDeposits, balanceDue };
+  }, [bookings]);
+
+  return {
+    bookings,
+    bookingsByDate,
+    bookingCounts,
+    revenueSummary,
+    loading,
+    refetch: fetchBookings,
+  };
 }

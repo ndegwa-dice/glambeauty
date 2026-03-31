@@ -10,6 +10,7 @@ interface DayBookingsListProps {
   onConfirm: (bookingId: string) => Promise<void>;
   onComplete: (bookingId: string) => Promise<void>;
   onCancel: (bookingId: string) => Promise<void>;
+  onNoShow: (bookingId: string) => Promise<void>;
 }
 
 export function DayBookingsList({
@@ -18,8 +19,8 @@ export function DayBookingsList({
   onConfirm,
   onComplete,
   onCancel,
+  onNoShow,
 }: DayBookingsListProps) {
-  // Convert to SalonBooking format expected by SalonBookingCard
   const formattedBookings: SalonBooking[] = bookings.map((b) => ({
     id: b.id,
     client_name: b.client_name,
@@ -28,7 +29,12 @@ export function DayBookingsList({
     start_time: b.start_time,
     end_time: b.end_time,
     status: b.status,
+    payment_status: b.payment_status,
     total_amount: b.total_amount,
+    deposit_amount: b.deposit_amount,
+    glamos_commission: b.glamos_commission,
+    salon_payout: b.salon_payout,
+    mpesa_receipt_number: b.mpesa_receipt_number,
     service_name: b.service_name,
     stylist_name: b.stylist_name,
     stylist_avatar: b.stylist_avatar,
@@ -48,9 +54,7 @@ export function DayBookingsList({
         <Card className="card-glass">
           <CardContent className="p-6 text-center">
             <Clock className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-muted-foreground text-sm">
-              No bookings for this day
-            </p>
+            <p className="text-muted-foreground text-sm">No bookings for this day</p>
             <p className="text-xs text-muted-foreground mt-1">
               Bookings will appear here as clients make appointments
             </p>
@@ -65,6 +69,7 @@ export function DayBookingsList({
               onConfirm={onConfirm}
               onComplete={onComplete}
               onCancel={onCancel}
+              onNoShow={onNoShow}
             />
           ))}
         </div>
