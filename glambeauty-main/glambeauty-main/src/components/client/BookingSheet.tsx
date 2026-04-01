@@ -326,19 +326,21 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       return;
     }
 
-    // Trigger STK Push — no amount sent, edge function fetches from DB
-    try {
-      await initiatePayment(bookingId, formattedPhone);
-      setCurrentBookingId(bookingId);
-      setPaymentPhone(formattedPhone);
-      setStep("payment");
-    } catch (err: any) {
-      toast({
-        variant: "destructive",
-        title: "Payment initiation failed",
-        description: err.message || "Could not send M-Pesa prompt. Please try again.",
-      });
-    }
+   try {
+  console.log("Initiating payment for booking:", bookingId, "phone:", formattedPhone);
+  const result = await initiatePayment(bookingId, formattedPhone);
+  console.log("Payment result:", result);
+  setCurrentBookingId(bookingId);
+  setPaymentPhone(formattedPhone);
+  setStep("payment");
+} catch (err: any) {
+  console.error("Payment error:", err);
+  toast({
+    variant: "destructive",
+    title: "Payment initiation failed",
+    description: err.message || "Could not send M-Pesa prompt. Please try again.",
+  });
+}
 
     setSubmitting(false);
   };
