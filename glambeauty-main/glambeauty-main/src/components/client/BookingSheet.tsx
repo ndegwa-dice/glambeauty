@@ -236,15 +236,21 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   };
 
   const initiatePayment = async (bookingId: string, phone: string) => {
-    const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
-      "initiate-mpesa-payment",
-      { body: { bookingId, phone } }
-    );
-    if (paymentError || !paymentData?.success) {
-      throw new Error(paymentData?.error || "Could not send M-Pesa prompt");
+  const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
+    "initiate-mpesa-payment",
+    {
+      body: {
+        booking_id: bookingId,
+        phone_number: phone,
+        amount: selectedService?.deposit_amount,   // edge function needs this
+      },
     }
-    return paymentData;
-  };
+  );
+  if (paymentError || !paymentData?.success) {
+    throw new Error(paymentData?.error || "Could not send M-Pesa prompt");
+  }
+  return paymentData;
+};
 
   const handleConfirmBooking = async () => {
     if (!salon || !selectedService || !selectedDate || !selectedTime || !user) return;
