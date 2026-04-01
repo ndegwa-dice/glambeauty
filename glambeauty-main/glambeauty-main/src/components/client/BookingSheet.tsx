@@ -82,14 +82,14 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   const [paymentPhone, setPaymentPhone] = useState<string | null>(null);
   const [paymentTimeLeft, setPaymentTimeLeft] = useState(PAYMENT_DURATION);
   const [paymentExpired, setPaymentExpired] = useState(false);
-  const [timerKey, setTimerKey] = useState(0); // increment to reset timer
+  const [timerKey, setTimerKey] = useState(0);
 
   // Guards — prevent duplicate execution
-  const paymentActive = useRef(false);   // prevents double-tap on Pay button
-  const paymentHandled = useRef(false);  // prevents success firing twice
-  const submitting = useRef(false);      // prevents double booking creation
+  const paymentActive = useRef(false);
+  const paymentHandled = useRef(false);
+  const submitting = useRef(false);
 
-  const [isSubmitting, setIsSubmitting] = useState(false); // UI only
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
   const { slots, loading: slotsLoading, refetch: refetchSlots } = useAvailableSlots({
@@ -172,14 +172,13 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [step, timerKey]); // timerKey resets timer on retry
+  }, [step, timerKey]);
 
-  // Centralized success handler — called by Realtime OR polling
+  // Centralized success handler
   const handlePaymentSuccess = useCallback(async () => {
-    if (paymentHandled.current) return; // already handled
+    if (paymentHandled.current) return;
     paymentHandled.current = true;
 
-    // Save phone only after confirmed payment
     if (phoneInput && phoneInput !== profile?.phone_number && user) {
       await supabase
         .from("profiles")
@@ -249,12 +248,14 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
   const phoneValid = validateKenyanPhone(phoneInput || profile?.phone_number || "");
 
-  // No amount sent — edge function fetches from DB
+  // ✅ FIXED: initiatePayment — correct structure with proper field names
   const initiatePayment = async (bookingId: string, phone: string) => {
     const { data, error } = await supabase.functions.invoke("initiate-mpesa-payment", {
-      body: { booking_id:   bookingId,
-  phone_number: phone,
-  amount:       selectedService?.deposit_amount
+      body: {
+        bookingId,
+        phone,
+        amount: selectedService?.deposit_amount,
+      },
     });
     if (error || !data?.success) {
       throw new Error(data?.error || error?.message || "Could not send M-Pesa prompt");
@@ -263,7 +264,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   };
 
   const handleConfirmBooking = async () => {
-    // Guard — prevent double execution
     if (paymentActive.current || submitting.current) return;
     if (!salon || !selectedService || !selectedDate || !selectedTime || !user) return;
 
@@ -382,7 +382,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
     try {
       await initiatePayment(currentBookingId, paymentPhone);
-      setTimerKey((k) => k + 1); // resets countdown
+      setTimerKey((k) => k + 1);
       toast({ title: "M-Pesa prompt resent! 📱", description: "Check your phone." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Retry failed", description: err.message });
@@ -604,7 +604,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               </CardContent>
             </Card>
 
-            {/* Phone field — always visible */}
+            {/* Phone field */}
             <div className="space-y-2 p-4 bg-muted/30 border border-border/50 rounded-xl">
               <p className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Smartphone className="w-4 h-4 text-primary" />
