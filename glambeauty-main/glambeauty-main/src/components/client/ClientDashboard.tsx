@@ -24,13 +24,15 @@ import { Sparkles, Plus, Store, Users, Crown, History } from "lucide-react";
 
 export function ClientDashboard() {
   const { toast } = useToast();
-  const { bookings, upcomingBookings, pastBookings, loading: bookingsLoading } = useClientBookings();
+  const { bookings, upcomingBookings, pastBookings, loading: bookingsLoading, refetch: refetchBookings } = useClientBookings();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const parallax = useParallaxScroll(scrollContainerRef);
 
   const [selectedCategory, setSelectedCategory] = useState<SalonCategory>("all");
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
-  const [selectedSalon, setSelectedSalon] = useState<DiscoverSalon | FeaturedSalon | null>(null);
+
+  // Always DiscoverSalon — cast FeaturedSalon when needed
+  const [selectedSalon, setSelectedSalon] = useState<DiscoverSalon | null>(null);
   const [bookingSheetOpen, setBookingSheetOpen] = useState(false);
   const [salonFeedOpen, setSalonFeedOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
@@ -46,8 +48,19 @@ export function ClientDashboard() {
   }, [upcomingBookings]);
 
   const handleSelectSalon = (salon: DiscoverSalon | FeaturedSalon) => {
-    setSelectedSalon(salon);
+    // Cast to DiscoverSalon — both types share the same structure
+    setSelectedSalon(salon as DiscoverSalon);
     setBookingSheetOpen(true);
+  };
+
+  const handleBookingSuccess = () => {
+    toast({
+      title: "You're booked, queen! 💅",
+      description: "Deposit paid. Your slot is confirmed.",
+    });
+    // Refresh bookings list
+    if (refetchBookings) refetchBookings();
+    setActiveTab("home");
   };
 
   const handleCancelBooking = async (bookingId: string) => {
@@ -78,7 +91,7 @@ export function ClientDashboard() {
   return (
     <div className="flex-1 flex flex-col pb-safe-bottom">
       {/* Ambient Glow */}
-      <div 
+      <div
         className="fixed inset-0 pointer-events-none overflow-hidden"
         style={{ transform: `translateY(${parallax.backgroundOffset}px)` }}
       >
@@ -159,7 +172,10 @@ export function ClientDashboard() {
                     <p className="text-sm text-muted-foreground mb-4">
                       Treat yourself to something beautiful today
                     </p>
-                    <Button className="btn-premium" onClick={() => setSalonFeedOpen(true)}>
+                    <Button
+                      className="btn-premium"
+                      onClick={() => setSalonFeedOpen(true)}
+                    >
                       <Sparkles className="w-4 h-4 mr-2" />
                       Browse Salons
                     </Button>
@@ -167,7 +183,11 @@ export function ClientDashboard() {
                 ) : (
                   <div className="space-y-3">
                     {filteredBookings.map((booking) => (
-                      <ClientBookingCard key={booking.id} booking={booking} onCancel={handleCancelBooking} />
+                      <ClientBookingCard
+                        key={booking.id}
+                        booking={booking}
+                        onCancel={handleCancelBooking}
+                      />
                     ))}
                   </div>
                 )}
@@ -176,10 +196,10 @@ export function ClientDashboard() {
 
             {/* QUEEN STATS TAB */}
             <TabsContent value="queen" className="mt-0">
-              <QueenStats 
-                bookings={bookings} 
-                upcomingBookings={upcomingBookings} 
-                pastBookings={pastBookings} 
+              <QueenStats
+                bookings={bookings}
+                upcomingBookings={upcomingBookings}
+                pastBookings={pastBookings}
               />
             </TabsContent>
 
@@ -250,11 +270,21 @@ export function ClientDashboard() {
         }}
       />
 
-      <BookingSheet
-        salon={selectedSalon}
-        open={bookingSheetOpen}
-        onOpenChange={setBookingSheetOpen}
-      />
+      {/* BookingSheet — only renders when salon is selected */}
+      {selectedSalon && (
+        <BookingSheet
+          salon={selectedSalon}
+          open={bookingSheetOpen}
+          onOpenChange={(open) => {
+            setBookingSheetOpen(open);
+            if (!open) {
+              // Small delay before clearing salon so sheet closes smoothly
+              setTimeout(() => setSelectedSalon(null), 400);
+            }
+          }}
+          onSuccess={handleBookingSuccess}
+        />
+      )}
     </div>
   );
 }
