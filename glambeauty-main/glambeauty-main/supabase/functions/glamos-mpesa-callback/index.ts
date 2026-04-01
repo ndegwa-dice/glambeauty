@@ -1,89 +1,147 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.91.1";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    console.log("M-Pesa callback received:", JSON.stringify(body));
+    const stk = body?.Body?.stkCallback;
 
-    const stkCallback = body?.Body?.stkCallback;
-    if (!stkCallback) {
-      console.error("Invalid callback format");
+    if (!stk) {
       return new Response(JSON.stringify({ ResultCode: 0, ResultDesc: "Accepted" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+        headers: { "Content-Type": "application/json" },
       });
     }
 
-    const { CheckoutRequestID, ResultCode, ResultDesc, CallbackMetadata } = stkCallback;
+    const checkoutRequestId = stk.CheckoutRequestID;
+    const resultCode = stk.ResultCode;
 
-    // Find booking by checkout request ID
-    const { data: booking, error: findError } = await supabase
+    // Find the booking by CheckoutRequestID
+    const { data: booking, error: bookingError } = await adminClient
       .from("bookings")
-      .select("*")
-      .eq("mpesa_checkout_request_id", CheckoutRequestID)
+      .select("id, salon_id, client_user_id, deposit_amount")
+      .eq("mpesa_checkout_request_id", checkoutRequestId)
       .single();
 
-    if (findError || !booking) {
-      console.error("Booking not found for CheckoutRequestID:", CheckoutRequestID);
+    if (bookingError || !booking) {
+      console.error("Booking not found for CheckoutRequestID:", checkoutRequestId);
       return new Response(JSON.stringify({ ResultCode: 0, ResultDesc: "Accepted" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+        headers: { "Content-Type": "application/json" },
       });
     }
 
-    if (ResultCode === 0) {
-      // Extract receipt number
-      let receiptNumber = "";
-      if (CallbackMetadata?.Item) {
-        for (const item of CallbackMetadata.Item) {
-          if (item.Name === "MpesaReceiptNumber") receiptNumber = item.Value;
-        }
-      }
-
-      // Mark deposit paid, confirm booking
-      await supabase
+    // ── PAYMENT FAILED ──
+    if (resultCode !== 0) {
+      await adminClient
         .from("bookings")
-        .update({
-          payment_status: "deposit_paid",
-          status: "confirmed",
-          mpesa_receipt_number: receiptNumber,
-        })
+        .update({ payment_status: "failed" })
         .eq("id", booking.id);
 
-      console.log("Deposit payment confirmed:", receiptNumber);
-    } else {
-      // Payment failed — revert to pending
-      await supabase
-        .from("bookings")
-        .update({
-          payment_status: "failed",
-          status: "pending",
-        })
-        .eq("id", booking.id);
+      // Log system event
+      await adminClient.from("system_events").insert({
+        event_type: "payment_failed",
+        payload: {
+          booking_id: booking.id,
+          result_code: resultCode,
+          result_desc: stk.ResultDesc,
+        },
+      });
 
-      console.log("Payment failed:", ResultDesc);
+      return new Response(JSON.stringify({ ResultCode: 0, ResultDesc: "Accepted" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
-    // Always respond with success to Safaricom
-    return new Response(JSON.stringify({ ResultCode: 0, ResultDesc: "Accepted" }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // ── PAYMENT SUCCESS ──
+    // Extract receipt from callback metadata
+    const items = stk.CallbackMetadata?.Item || [];
+    const receipt = items.find((i: any) => i.Name === "MpesaReceiptNumber")?.Value || "";
+    const amount = items.find((i: any) => i.Name === "Amount")?.Value || booking.deposit_amount;
+
+    // Idempotency — check if already processed
+    const { data: existing } = await adminClient
+      .from("transactions")
+      .select("id")
+      .eq("mpesa_receipt", receipt)
+      .single();
+
+    if (existing) {
+      console.log("Duplicate callback — already processed:", receipt);
+      return new Response(JSON.stringify({ ResultCode: 0, ResultDesc: "Accepted" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Calculate 50/50 split
+    const totalAmount = Number(amount);
+    const glamosCommission = totalAmount * 0.5;
+    const salonNet = totalAmount * 0.5;
+
+    // Update booking
+    await adminClient
+      .from("bookings")
+      .update({
+        payment_status: "completed",
+        status: "confirmed",
+        mpesa_receipt_number: receipt,
+        payment_confirmed_at: new Date().toISOString(),
+        glamos_commission: glamosCommission,
+        salon_payout: salonNet,
+      })
+      .eq("id", booking.id);
+
+    // Write to transactions ledger
+    await adminClient.from("transactions").insert({
+      booking_id: booking.id,
+      salon_id: booking.salon_id,
+      client_user_id: booking.client_user_id,
+      type: "deposit",
+      amount_kes: totalAmount,
+      glamos_commission: glamosCommission,
+      salon_net: salonNet,
+      mpesa_receipt: receipt,
+      status: "settled",
+      settled_at: new Date().toISOString(),
     });
-  } catch (err) {
-    console.error("Callback error:", err);
+
+    // Notify client
+    await adminClient.from("user_notifications").insert({
+      user_id: booking.client_user_id,
+      title: "Payment confirmed! 💅",
+      message: `Your deposit of KES ${totalAmount} has been received. Your booking is confirmed!`,
+      type: "payment",
+    });
+
+    // Log system event
+    await adminClient.from("system_events").insert({
+      event_type: "payment_success",
+      payload: {
+        booking_id: booking.id,
+        receipt,
+        amount: totalAmount,
+        glamos_commission: glamosCommission,
+        salon_net: salonNet,
+      },
+    });
+
     return new Response(JSON.stringify({ ResultCode: 0, ResultDesc: "Accepted" }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  } catch (error: any) {
+    console.error("mpesa-callback error:", error);
+    // Always return 200 to Safaricom — never let them retry infinitely
+    return new Response(JSON.stringify({ ResultCode: 0, ResultDesc: "Accepted" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
     });
   }
 });
