@@ -99,12 +99,12 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     stylistId: selectedStylistId,
   });
 
-  // Pre-fill phone from profile
+  // ── DO NOT pre-fill phone from profile — client must enter manually ──
   useEffect(() => {
-    if (open && profile?.phone_number) {
-      setPhoneInput(profile.phone_number);
+    if (open) {
+      setPhoneInput("");
     }
-  }, [open, profile?.phone_number]);
+  }, [open]);
 
   // Fetch services when sheet opens
   useEffect(() => {
@@ -133,7 +133,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
         setSelectedStylistName(null);
         setSelectedDate(undefined);
         setSelectedTime(null);
-        setPhoneInput(profile?.phone_number || "");
+        setPhoneInput("");
         setCurrentBookingId(null);
         setPaymentPhone(null);
         setPaymentTimeLeft(PAYMENT_DURATION);
@@ -179,7 +179,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     if (paymentHandled.current) return;
     paymentHandled.current = true;
 
-    if (phoneInput && phoneInput !== profile?.phone_number && user) {
+    if (phoneInput && user) {
       await supabase
         .from("profiles")
         .update({ phone_number: phoneInput })
@@ -188,7 +188,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
     setStep("success");
     onSuccess?.();
-  }, [phoneInput, profile?.phone_number, user, onSuccess]);
+  }, [phoneInput, user, onSuccess]);
 
   // Realtime + polling fallback
   useEffect(() => {
@@ -246,14 +246,14 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   const progressPercent = step === "success" ? 100 : ((currentStepIndex + 1) / STEPS_ORDER.length) * 100;
   const countdownProgress = (paymentTimeLeft / PAYMENT_DURATION) * 100;
 
-  const phoneValid = validateKenyanPhone(phoneInput || profile?.phone_number || "");
+  const phoneValid = validateKenyanPhone(phoneInput);
 
-  // ✅ FIXED: initiatePayment — correct structure with proper field names
+  // ✅ FIXED: field names now match what the edge function expects
   const initiatePayment = async (bookingId: string, phone: string) => {
     const { data, error } = await supabase.functions.invoke("initiate-mpesa-payment", {
       body: {
-        bookingId,
-        phone,
+        booking_id: bookingId,
+        phone_number: phone,
         amount: selectedService?.deposit_amount,
       },
     });
@@ -267,8 +267,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     if (paymentActive.current || submitting.current) return;
     if (!salon || !selectedService || !selectedDate || !selectedTime || !user) return;
 
-    const phoneSource = phoneInput || profile?.phone_number || "";
-    if (!validateKenyanPhone(phoneSource)) {
+    if (!validateKenyanPhone(phoneInput)) {
       toast({
         variant: "destructive",
         title: "Valid M-Pesa number required",
@@ -277,7 +276,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       return;
     }
 
-    const formattedPhone = formatToMpesa(phoneSource)!;
+    const formattedPhone = formatToMpesa(phoneInput)!;
 
     submitting.current = true;
     setIsSubmitting(true);
@@ -604,7 +603,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               </CardContent>
             </Card>
 
-            {/* Phone field */}
+            {/* Phone field — always blank, client must enter manually */}
             <div className="space-y-2 p-4 bg-muted/30 border border-border/50 rounded-xl">
               <p className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Smartphone className="w-4 h-4 text-primary" />
