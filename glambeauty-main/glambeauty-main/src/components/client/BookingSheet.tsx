@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -165,7 +166,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   // FIX #4 + FIX #1: extracted shared post-payment success handler
   // Phone save happens here (not inside realtime callback) so both
   // realtime and polling paths use the same logic.
-  const handlePaymentSuccess = async () => {
+  const handlePaymentSuccess = useCallback(async () => {
     if (phoneInput && phoneInput !== profile?.phone_number && user) {
       await supabase
         .from("profiles")
@@ -174,7 +175,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     }
     setStep("success");
     onSuccess?.();
-  };
+  }, [phoneInput, profile?.phone_number, user, onSuccess]);
 
   // Realtime + polling fallback
   useEffect(() => {
