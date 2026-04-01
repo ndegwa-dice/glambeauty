@@ -13,7 +13,6 @@ export interface FeaturedSalon {
   phone_number: string | null;
   category: string | null;
   is_featured: boolean | null;
-  ad_tier: string | null;
 }
 
 export function useFeaturedSalons() {
@@ -24,15 +23,11 @@ export function useFeaturedSalons() {
     const fetchFeaturedSalons = async () => {
       setLoading(true);
 
-      const now = new Date().toISOString();
-
       const { data, error } = await supabase
         .from("salons")
-        .select("id, name, slug, description, address, city, logo_url, cover_image_url, phone_number, category, is_featured, ad_tier")
+        .select("id, name, slug, description, address, city, logo_url, cover_image_url, phone_number, category, is_featured")
         .eq("is_active", true)
         .eq("is_featured", true)
-        .or(`featured_until.is.null,featured_until.gte.${now}`)
-        .order("ad_tier", { ascending: true })
         .order("created_at", { ascending: false })
         .limit(10);
 
