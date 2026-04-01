@@ -59,8 +59,8 @@ const STEP_CONFIG: Record<BookingStep, { emoji: string; title: string; subtitle:
   success: { emoji: "🎉", title: "You're Booked!", subtitle: "Get ready to look amazing!" },
 };
 
-const STEPS_ORDER: BookingStep[] = ["services", "stylist", "datetime", "confirm", "payment"];
-const PAYMENT_DURATION = 60; // seconds
+const STEPS_ORDER: BookingStep[] = ["services", "stylist", "datetime", "confirm", "payment", "success"];
+const PAYMENT_DURATION = 60;
 
 export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSheetProps) {
   const { user, profile } = useAuth();
@@ -77,7 +77,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Phone — always editable, pre-filled from profile
   const [phoneInput, setPhoneInput] = useState("");
 
   const [currentBookingId, setCurrentBookingId] = useState<string | null>(null);
@@ -85,6 +84,8 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   const [paymentTimeLeft, setPaymentTimeLeft] = useState(PAYMENT_DURATION);
   const [paymentExpired, setPaymentExpired] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  // FIX #14: dedicated timer key so retry always resets the countdown
+  const [timerKey, setTimerKey] = useState(0);
 
   const { slots, loading: slotsLoading, refetch: refetchSlots } = useAvailableSlots({
     salonId: salon?.id || "",
@@ -116,6 +117,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     fetchServices();
   }, [salon, open]);
 
+  // FIX #15: include profile in deps so phone reset is not stale
   useEffect(() => {
     if (!open) {
       setTimeout(() => {
@@ -132,7 +134,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
         setPaymentExpired(false);
       }, 300);
     }
-  }, [open]);
+  }, [open, profile]);
 
   useEffect(() => {
     if (!selectedStylistId) { setSelectedStylistName(null); return; }
@@ -140,7 +142,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       .then(({ data }) => { if (data) setSelectedStylistName(data.name); });
   }, [selectedStylistId]);
 
-  // Countdown timer — resets when payment step entered
+  // FIX #14: countdown depends on timerKey so retry resets it properly
   useEffect(() => {
     if (step !== "payment") return;
     setPaymentTimeLeft(PAYMENT_DURATION);
@@ -158,29 +160,36 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [step, currentBookingId]);
+  }, [step, timerKey]);
+
+  // FIX #4 + FIX #1: extracted shared post-payment success handler
+  // Phone save happens here (not inside realtime callback) so both
+  // realtime and polling paths use the same logic.
+  const handlePaymentSuccess = async () => {
+    if (phoneInput && phoneInput !== profile?.phone_number && user) {
+      await supabase
+        .from("profiles")
+        .update({ phone_number: phoneInput })
+        .eq("user_id", user.id);
+    }
+    setStep("success");
+    onSuccess?.();
+  };
 
   // Realtime + polling fallback
   useEffect(() => {
     if (step !== "payment" || !currentBookingId) return;
 
+    // FIX #1: callback is now async so await works correctly
     const channel = supabase
       .channel(`payment_${currentBookingId}`)
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "bookings", filter: `id=eq.${currentBookingId}` },
-        (payload) => {
+        async (payload) => {
           const updated = payload.new as any;
           if (updated.payment_status === "completed") {
-            // Save phone only after successful payment
-            if (phoneInput && phoneInput !== profile?.phone_number) {
-              await supabase
-                .from("profiles")
-                .update({ phone_number: phoneInput })
-                .eq("user_id", user.id);
-            }
-            setStep("success");
-            onSuccess?.();
+            await handlePaymentSuccess();
           } else if (updated.payment_status === "failed") {
             setPaymentExpired(true);
             toast({
@@ -204,8 +213,8 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
         .single();
       if (data?.payment_status === "completed") {
         clearInterval(poll);
-        setStep("success");
-        onSuccess?.();
+        // FIX #4: same handler as realtime path — phone save included
+        await handlePaymentSuccess();
       }
     }, 5000);
 
@@ -213,10 +222,12 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       supabase.removeChannel(channel);
       clearInterval(poll);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, currentBookingId]);
 
+  // FIX #16: success included in STEPS_ORDER so progress is consistent
   const currentStepIndex = STEPS_ORDER.indexOf(step);
-  const progressPercent = step === "success" ? 100 : ((currentStepIndex + 1) / STEPS_ORDER.length) * 100;
+  const progressPercent = ((currentStepIndex + 1) / STEPS_ORDER.length) * 100;
   const progressPercent2 = (paymentTimeLeft / PAYMENT_DURATION) * 100;
 
   const handleServiceSelect = (service: Service) => {
@@ -224,7 +235,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     setStep("stylist");
   };
 
-  // No amount sent — edge function fetches from DB
   const initiatePayment = async (bookingId: string, phone: string) => {
     const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
       "initiate-mpesa-payment",
@@ -239,7 +249,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   const handleConfirmBooking = async () => {
     if (!salon || !selectedService || !selectedDate || !selectedTime || !user) return;
 
-    // Phone — use what client typed, fall back to profile
     const phoneSource = phoneInput || profile?.phone_number || "";
     if (!validateKenyanPhone(phoneSource)) {
       toast({
@@ -252,97 +261,104 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
     const formattedPhone = formatToMpesa(phoneSource)!;
 
-    // Phone saved only after successful payment — never on mistype
-
     setSubmitting(true);
 
-    const [hours, minutes] = selectedTime.split(":").map(Number);
-    const startMinutes = hours * 60 + minutes;
-    const endMinutes = startMinutes + selectedService.duration_minutes;
-    const endHours = Math.floor(endMinutes / 60);
-    const endMins = endMinutes % 60;
-    const endTime = `${String(endHours).padStart(2, "0")}:${String(endMins).padStart(2, "0")}`;
+    // FIX #13: try/finally guarantees submitting is always reset
+    try {
+      const [hours, minutes] = selectedTime.split(":").map(Number);
+      const startMinutes = hours * 60 + minutes;
+      const endMinutes = startMinutes + selectedService.duration_minutes;
+      const endHours = Math.floor(endMinutes / 60);
+      const endMins = endMinutes % 60;
+      const endTime = `${String(endHours).padStart(2, "0")}:${String(endMins).padStart(2, "0")}`;
 
-    let finalStylistId = selectedStylistId;
-    let finalStylistName = selectedStylistName;
+      let finalStylistId = selectedStylistId;
+      let finalStylistName = selectedStylistName;
 
-    if (!selectedStylistId) {
-      const result = await assignStylist({
-        salonId: salon.id,
-        serviceId: selectedService.id,
-        date: format(selectedDate, "yyyy-MM-dd"),
-        startTime: selectedTime,
-        endTime,
-      });
-      if (result.stylistId && result.stylistName) {
-        finalStylistId = result.stylistId;
-        finalStylistName = result.stylistName;
+      if (!selectedStylistId) {
+        const result = await assignStylist({
+          salonId: salon.id,
+          serviceId: selectedService.id,
+          date: format(selectedDate, "yyyy-MM-dd"),
+          startTime: selectedTime,
+          endTime,
+        });
+        if (result.stylistId && result.stylistName) {
+          finalStylistId = result.stylistId;
+          finalStylistName = result.stylistName;
+          // FIX #9: write auto-assigned stylist back to state
+          setSelectedStylistId(result.stylistId);
+          setSelectedStylistName(result.stylistName);
+        }
       }
-    }
 
-    if (!finalStylistId) {
-      toast({
-        variant: "destructive",
-        title: "No stylist available",
-        description: "No stylists are available for this slot. Please pick another time.",
-      });
-      setSubmitting(false);
-      return;
-    }
-
-    // Reserve slot atomically
-    const { data: bookingId, error: bookingError } = await supabase.rpc("book_slot_atomic", {
-      p_salon_id:       salon.id,
-      p_service_id:     selectedService.id,
-      p_stylist_id:     finalStylistId,
-      p_date:           format(selectedDate, "yyyy-MM-dd"),
-      p_start_time:     selectedTime,
-      p_end_time:       endTime,
-      p_client_user_id: user.id,
-      p_client_name:    profile?.full_name || "Guest",
-      p_client_phone:   formattedPhone,
-      p_total_amount:   selectedService.price,
-      p_deposit_amount: selectedService.deposit_amount,
-    });
-
-    if (bookingError) {
-      const isSlotTaken = bookingError.message?.includes("SLOT_TAKEN") || bookingError.code === "23505";
-      toast({
-        variant: "destructive",
-        title: isSlotTaken ? "Slot just taken!" : "Booking failed",
-        description: isSlotTaken ? "That slot was just taken — pick another time" : bookingError.message,
-      });
-      if (isSlotTaken) {
-        setSelectedTime(null);
-        setStep("datetime");
-        refetchSlots();
+      if (!finalStylistId) {
         toast({
           variant: "destructive",
-          title: "Slot just got snatched 😭",
-          description: "Here are fresh slots — pick another time",
+          title: "No stylist available",
+          description: "No stylists are available for this slot. Please pick another time.",
+        });
+        return;
+      }
+
+      const { data: bookingId, error: bookingError } = await supabase.rpc("book_slot_atomic", {
+        p_salon_id:       salon.id,
+        p_service_id:     selectedService.id,
+        p_stylist_id:     finalStylistId,
+        p_date:           format(selectedDate, "yyyy-MM-dd"),
+        p_start_time:     selectedTime,
+        p_end_time:       endTime,
+        p_client_user_id: user.id,
+        p_client_name:    profile?.full_name || "Guest",
+        p_client_phone:   formattedPhone,
+        p_total_amount:   selectedService.price,
+        p_deposit_amount: selectedService.deposit_amount,
+      });
+
+      if (bookingError) {
+        const isSlotTaken = bookingError.message?.includes("SLOT_TAKEN") || bookingError.code === "23505";
+        if (isSlotTaken) {
+          // FIX #6: single toast for slot taken — no duplicate
+          setSelectedTime(null);
+          setStep("datetime");
+          refetchSlots();
+          toast({
+            variant: "destructive",
+            title: "Slot just got snatched",
+            description: "That slot was just taken — here are fresh slots, pick another time",
+          });
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Booking failed",
+            description: bookingError.message,
+          });
+        }
+        return;
+      }
+
+      try {
+        await initiatePayment(bookingId, formattedPhone);
+        setCurrentBookingId(bookingId);
+        setPaymentPhone(formattedPhone);
+        setTimerKey((k) => k + 1); // FIX #14: reset timer on first trigger
+        setStep("payment");
+      } catch (err: any) {
+        // FIX #2: payment initiation failed — cancel the booking so the slot isn't orphaned
+        await supabase
+          .from("bookings")
+          .update({ status: "cancelled", payment_status: "cancelled" })
+          .eq("id", bookingId);
+        toast({
+          variant: "destructive",
+          title: "Payment initiation failed",
+          description: err.message || "Could not send M-Pesa prompt. Please try again.",
         });
       }
+    } finally {
+      // FIX #3: always reset submitting regardless of which path we took
       setSubmitting(false);
-      return;
     }
-
-   try {
-  console.log("Initiating payment for booking:", bookingId, "phone:", formattedPhone);
-  const result = await initiatePayment(bookingId, formattedPhone);
-  console.log("Payment result:", result);
-  setCurrentBookingId(bookingId);
-  setPaymentPhone(formattedPhone);
-  setStep("payment");
-} catch (err: any) {
-  console.error("Payment error:", err);
-  toast({
-    variant: "destructive",
-    title: "Payment initiation failed",
-    description: err.message || "Could not send M-Pesa prompt. Please try again.",
-  });
-}
-
-    setSubmitting(false);
   };
 
   const handleRetryPayment = async () => {
@@ -351,8 +367,9 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     setPaymentExpired(false);
     try {
       await initiatePayment(currentBookingId, paymentPhone);
-      setPaymentTimeLeft(PAYMENT_DURATION);
-      toast({ title: "M-Pesa prompt resent! 📱", description: "Check your phone." });
+      // FIX #14: reset countdown on every retry, not just when expired
+      setTimerKey((k) => k + 1);
+      toast({ title: "M-Pesa prompt resent!", description: "Check your phone." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Retry failed", description: err.message });
     }
@@ -366,9 +383,11 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
         .update({ status: "cancelled", payment_status: "cancelled" })
         .eq("id", currentBookingId);
     }
-    setStep("confirm");
+    // FIX #8: clear bookingId after cancel so re-submit creates a fresh booking
+    // (the old booking is cancelled above, preventing double-booking)
     setCurrentBookingId(null);
     setPaymentPhone(null);
+    setStep("confirm");
   };
 
   const phoneValid = validateKenyanPhone(phoneInput || profile?.phone_number || "");
@@ -574,7 +593,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               </CardContent>
             </Card>
 
-            {/* ── PHONE FIELD — always visible, always editable ── */}
             <div className="space-y-2 p-4 bg-muted/30 border border-border/50 rounded-xl">
               <p className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Smartphone className="w-4 h-4 text-primary" />
@@ -623,7 +641,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       case "payment":
         return (
           <div className="flex flex-col items-center justify-center py-6 animate-fade-in text-center space-y-5">
-            {/* Phone + amount */}
             <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30 w-full text-left space-y-1">
               <p className="text-xs text-muted-foreground">M-Pesa prompt sent to</p>
               <p className="font-bold text-foreground text-lg">{paymentPhone}</p>
@@ -709,6 +726,12 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                   <span className="text-muted-foreground">Where</span>
                   <span>{salon?.name}</span>
                 </div>
+                {selectedStylistName && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Stylist</span>
+                    <span className="font-medium text-gradient">{selectedStylistName}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm border-t border-border/30 pt-2">
                   <span className="text-muted-foreground">Deposit paid</span>
                   <span className="font-bold text-green-500">{formatKES(selectedService?.deposit_amount ?? 0)} ✓</span>
