@@ -35,6 +35,7 @@ import {
   Smartphone,
   RefreshCw,
   X,
+  ShieldCheck,
 } from "lucide-react";
 import type { DiscoverSalon } from "@/hooks/useDiscoverSalons";
 import type { Tables } from "@/integrations/supabase/types";
@@ -59,6 +60,7 @@ const STEP_CONFIG: Record<BookingStep, { emoji: string; title: string; subtitle:
 };
 
 const STEPS_ORDER: BookingStep[] = ["services", "stylist", "datetime", "confirm", "payment"];
+const PAYMENT_DURATION = 60; // seconds
 
 export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSheetProps) {
   const { user, profile } = useAuth();
@@ -74,19 +76,29 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Phone — always editable, pre-filled from profile
   const [phoneInput, setPhoneInput] = useState("");
+
   const [currentBookingId, setCurrentBookingId] = useState<string | null>(null);
   const [paymentPhone, setPaymentPhone] = useState<string | null>(null);
-  const [paymentTimeLeft, setPaymentTimeLeft] = useState(60);
+  const [paymentTimeLeft, setPaymentTimeLeft] = useState(PAYMENT_DURATION);
   const [paymentExpired, setPaymentExpired] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
-  const { slots, loading: slotsLoading } = useAvailableSlots({
+  const { slots, loading: slotsLoading, refetch: refetchSlots } = useAvailableSlots({
     salonId: salon?.id || "",
     date: selectedDate,
     serviceDuration: selectedService?.duration_minutes || 30,
     stylistId: selectedStylistId,
   });
+
+  // Pre-fill phone from profile when sheet opens
+  useEffect(() => {
+    if (open && profile?.phone_number) {
+      setPhoneInput(profile.phone_number);
+    }
+  }, [open, profile?.phone_number]);
 
   useEffect(() => {
     if (!salon || !open) return;
@@ -113,10 +125,10 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
         setSelectedStylistName(null);
         setSelectedDate(undefined);
         setSelectedTime(null);
-        setPhoneInput("");
+        setPhoneInput(profile?.phone_number || "");
         setCurrentBookingId(null);
         setPaymentPhone(null);
-        setPaymentTimeLeft(60);
+        setPaymentTimeLeft(PAYMENT_DURATION);
         setPaymentExpired(false);
       }, 300);
     }
@@ -124,17 +136,14 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
   useEffect(() => {
     if (!selectedStylistId) { setSelectedStylistName(null); return; }
-    const fetchStylistName = async () => {
-      const { data } = await supabase.from("stylists").select("name").eq("id", selectedStylistId).single();
-      if (data) setSelectedStylistName(data.name);
-    };
-    fetchStylistName();
+    supabase.from("stylists").select("name").eq("id", selectedStylistId).single()
+      .then(({ data }) => { if (data) setSelectedStylistName(data.name); });
   }, [selectedStylistId]);
 
-  // Payment countdown timer
+  // Countdown timer — resets when payment step entered
   useEffect(() => {
     if (step !== "payment") return;
-    setPaymentTimeLeft(60);
+    setPaymentTimeLeft(PAYMENT_DURATION);
     setPaymentExpired(false);
 
     const timer = setInterval(() => {
@@ -151,7 +160,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     return () => clearInterval(timer);
   }, [step, currentBookingId]);
 
-  // Realtime subscription + polling fallback
+  // Realtime + polling fallback
   useEffect(() => {
     if (step !== "payment" || !currentBookingId) return;
 
@@ -159,15 +168,17 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       .channel(`payment_${currentBookingId}`)
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "bookings",
-          filter: `id=eq.${currentBookingId}`,
-        },
+        { event: "UPDATE", schema: "public", table: "bookings", filter: `id=eq.${currentBookingId}` },
         (payload) => {
           const updated = payload.new as any;
           if (updated.payment_status === "completed") {
+            // Save phone only after successful payment
+            if (phoneInput && phoneInput !== profile?.phone_number) {
+              await supabase
+                .from("profiles")
+                .update({ phone_number: phoneInput })
+                .eq("user_id", user.id);
+            }
             setStep("success");
             onSuccess?.();
           } else if (updated.payment_status === "failed") {
@@ -182,18 +193,15 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       )
       .subscribe();
 
-    // Polling fallback every 5 seconds for 90 seconds
     let pollCount = 0;
     const poll = setInterval(async () => {
       pollCount++;
       if (pollCount > 18) { clearInterval(poll); return; }
-
       const { data } = await supabase
         .from("bookings")
         .select("payment_status")
         .eq("id", currentBookingId)
         .single();
-
       if (data?.payment_status === "completed") {
         clearInterval(poll);
         setStep("success");
@@ -209,18 +217,18 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
   const currentStepIndex = STEPS_ORDER.indexOf(step);
   const progressPercent = step === "success" ? 100 : ((currentStepIndex + 1) / STEPS_ORDER.length) * 100;
+  const progressPercent2 = (paymentTimeLeft / PAYMENT_DURATION) * 100;
 
   const handleServiceSelect = (service: Service) => {
     setSelectedService(service);
     setStep("stylist");
   };
 
-  const handleStylistContinue = () => setStep("datetime");
-
-  const initiatePayment = async (bookingId: string, phone: string, amount: number) => {
+  // No amount sent — edge function fetches from DB
+  const initiatePayment = async (bookingId: string, phone: string) => {
     const { data: paymentData, error: paymentError } = await supabase.functions.invoke(
       "initiate-mpesa-payment",
-      { body: { bookingId, phone, amount } }
+      { body: { bookingId, phone } }
     );
     if (paymentError || !paymentData?.success) {
       throw new Error(paymentData?.error || "Could not send M-Pesa prompt");
@@ -231,24 +239,20 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   const handleConfirmBooking = async () => {
     if (!salon || !selectedService || !selectedDate || !selectedTime || !user) return;
 
-    const phoneSource = profile?.phone_number || phoneInput;
+    // Phone — use what client typed, fall back to profile
+    const phoneSource = phoneInput || profile?.phone_number || "";
     if (!validateKenyanPhone(phoneSource)) {
       toast({
         variant: "destructive",
-        title: "Phone number required",
-        description: "Add your M-Pesa number to confirm bookings",
+        title: "Valid M-Pesa number required",
+        description: "Enter your Kenyan phone number to pay the deposit",
       });
       return;
     }
 
     const formattedPhone = formatToMpesa(phoneSource)!;
 
-    if (!profile?.phone_number && phoneInput) {
-      await supabase
-        .from("profiles")
-        .update({ phone_number: phoneSource })
-        .eq("user_id", user.id);
-    }
+    // Phone saved only after successful payment — never on mistype
 
     setSubmitting(true);
 
@@ -286,7 +290,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       return;
     }
 
-    // Step 1: Reserve slot atomically
+    // Reserve slot atomically
     const { data: bookingId, error: bookingError } = await supabase.rpc("book_slot_atomic", {
       p_salon_id:       salon.id,
       p_service_id:     selectedService.id,
@@ -306,21 +310,25 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       toast({
         variant: "destructive",
         title: isSlotTaken ? "Slot just taken!" : "Booking failed",
-        description: isSlotTaken
-          ? "That slot was just taken — pick another time"
-          : bookingError.message,
+        description: isSlotTaken ? "That slot was just taken — pick another time" : bookingError.message,
       });
       if (isSlotTaken) {
         setSelectedTime(null);
         setStep("datetime");
+        refetchSlots();
+        toast({
+          variant: "destructive",
+          title: "Slot just got snatched 😭",
+          description: "Here are fresh slots — pick another time",
+        });
       }
       setSubmitting(false);
       return;
     }
 
-    // Step 2: Trigger STK Push
+    // Trigger STK Push — no amount sent, edge function fetches from DB
     try {
-      await initiatePayment(bookingId, formattedPhone, selectedService.deposit_amount);
+      await initiatePayment(bookingId, formattedPhone);
       setCurrentBookingId(bookingId);
       setPaymentPhone(formattedPhone);
       setStep("payment");
@@ -336,18 +344,16 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   };
 
   const handleRetryPayment = async () => {
-    if (!currentBookingId || !paymentPhone || !selectedService) return;
+    if (!currentBookingId || !paymentPhone) return;
     setRetrying(true);
     setPaymentExpired(false);
-
     try {
-      await initiatePayment(currentBookingId, paymentPhone, selectedService.deposit_amount);
-      setPaymentTimeLeft(60);
+      await initiatePayment(currentBookingId, paymentPhone);
+      setPaymentTimeLeft(PAYMENT_DURATION);
       toast({ title: "M-Pesa prompt resent! 📱", description: "Check your phone." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Retry failed", description: err.message });
     }
-
     setRetrying(false);
   };
 
@@ -363,6 +369,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     setPaymentPhone(null);
   };
 
+  const phoneValid = validateKenyanPhone(phoneInput || profile?.phone_number || "");
   const stepConfig = STEP_CONFIG[step];
 
   const renderStep = () => {
@@ -438,12 +445,10 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                 {selectedService?.duration_minutes} min • {formatKES(selectedService?.price ?? 0)}
               </span>
             </div>
-
             <h4 className="font-display font-semibold text-foreground flex items-center gap-2">
               <Heart className="w-4 h-4 text-primary animate-pulse-soft" />
               Who's Your Beauty Artist?
             </h4>
-
             <StylistPicker
               salonId={salon?.id || ""}
               serviceId={selectedService?.id || ""}
@@ -451,12 +456,11 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               selectedStylistId={selectedStylistId}
               onSelectStylist={setSelectedStylistId}
             />
-
             <div className="flex gap-3 pt-2">
               <Button variant="outline" onClick={() => setStep("services")} className="flex-1 h-12">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
               </Button>
-              <Button onClick={handleStylistContinue} className="flex-1 h-12 btn-premium">
+              <Button onClick={() => setStep("datetime")} className="flex-1 h-12 btn-premium">
                 <Sparkles className="w-4 h-4 mr-2" /> Continue
               </Button>
             </div>
@@ -476,7 +480,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                 </>
               )}
             </div>
-
             <Card className="card-glass overflow-hidden">
               <CardContent className="p-3">
                 <Calendar
@@ -488,16 +491,13 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                 />
               </CardContent>
             </Card>
-
             {selectedDate && (
               <div className="space-y-3">
                 <h4 className="font-display font-semibold text-foreground flex items-center gap-2">
                   <Star className="w-4 h-4 text-primary" />
                   {format(selectedDate, "EEEE, MMMM d")}
                   {selectedStylistName && (
-                    <span className="text-xs text-muted-foreground font-normal">
-                      ({selectedStylistName}'s slots)
-                    </span>
+                    <span className="text-xs text-muted-foreground font-normal">({selectedStylistName}'s slots)</span>
                   )}
                 </h4>
                 <TimeSlotPicker
@@ -508,7 +508,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                 />
               </div>
             )}
-
             <div className="flex gap-3 pt-2">
               <Button variant="outline" onClick={() => setStep("stylist")} className="flex-1 h-12">
                 <ArrowLeft className="w-4 h-4 mr-2" /> Back
@@ -541,41 +540,27 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
                 <div className="space-y-3 pt-3 border-t border-border/30">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <MapPin className="w-3.5 h-3.5" /> Salon
-                    </span>
+                    <span className="text-muted-foreground flex items-center gap-2"><MapPin className="w-3.5 h-3.5" /> Salon</span>
                     <span className="text-foreground font-medium">{salon?.name}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <CalendarIcon className="w-3.5 h-3.5" /> Date
-                    </span>
-                    <span className="text-foreground">
-                      {selectedDate && format(selectedDate, "EEE, MMM d, yyyy")}
-                    </span>
+                    <span className="text-muted-foreground flex items-center gap-2"><CalendarIcon className="w-3.5 h-3.5" /> Date</span>
+                    <span className="text-foreground">{selectedDate && format(selectedDate, "EEE, MMM d, yyyy")}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5" /> Time
-                    </span>
+                    <span className="text-muted-foreground flex items-center gap-2"><Clock className="w-3.5 h-3.5" /> Time</span>
                     <span className="text-foreground">{selectedTime}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground flex items-center gap-2">
-                      <User className="w-3.5 h-3.5" /> Stylist
-                    </span>
-                    <span className="text-foreground font-medium text-gradient">
-                      {selectedStylistName || "Best Available ✨"}
-                    </span>
+                    <span className="text-muted-foreground flex items-center gap-2"><User className="w-3.5 h-3.5" /> Stylist</span>
+                    <span className="text-foreground font-medium text-gradient">{selectedStylistName || "Best Available ✨"}</span>
                   </div>
                 </div>
 
                 <div className="border-t border-border/30 pt-4 space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-muted-foreground">Deposit due now</span>
-                    <span className="font-bold text-primary text-xl">
-                      {formatKES(selectedService?.deposit_amount ?? 0)}
-                    </span>
+                    <span className="font-bold text-primary text-xl">{formatKES(selectedService?.deposit_amount ?? 0)}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground">Balance on the day</span>
@@ -587,37 +572,28 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               </CardContent>
             </Card>
 
-            {/* Phone gate */}
-            {!validateKenyanPhone(profile?.phone_number || "") && (
-              <div className="space-y-2 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
-                  📱 Add your M-Pesa number to confirm
+            {/* ── PHONE FIELD — always visible, always editable ── */}
+            <div className="space-y-2 p-4 bg-muted/30 border border-border/50 rounded-xl">
+              <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-primary" />
+                M-Pesa number
+              </p>
+              <input
+                type="tel"
+                placeholder="07XX XXX XXX"
+                value={phoneInput}
+                onChange={(e) => setPhoneInput(e.target.value)}
+                className="w-full h-11 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              {phoneInput && !validateKenyanPhone(phoneInput) && (
+                <p className="text-xs text-destructive">Enter a valid Kenyan number (07XX, 01XX or +254...)</p>
+              )}
+              {phoneValid && (
+                <p className="text-xs text-green-500 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" />
+                  M-Pesa prompt will be sent to this number
                 </p>
-                <input
-                  type="tel"
-                  placeholder="07XX XXX XXX"
-                  value={phoneInput}
-                  onChange={(e) => setPhoneInput(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                {phoneInput && !validateKenyanPhone(phoneInput) && (
-                  <p className="text-xs text-destructive">
-                    Enter a valid Kenyan number (07XX or 01XX or +254...)
-                  </p>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center gap-3 p-4 bg-primary/10 border border-primary/20 rounded-xl">
-              <div className="w-10 h-10 rounded-full gradient-barbie flex items-center justify-center glow-barbie shrink-0">
-                <Crown className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">Secure your slot now 👑</p>
-                <p className="text-xs text-muted-foreground">
-                  Pay deposit via M-Pesa — balance paid at the salon on the day
-                </p>
-              </div>
+              )}
             </div>
 
             <div className="flex gap-3">
@@ -626,10 +602,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               </Button>
               <Button
                 onClick={handleConfirmBooking}
-                disabled={
-                  submitting ||
-                  (!validateKenyanPhone(profile?.phone_number || "") && !validateKenyanPhone(phoneInput))
-                }
+                disabled={submitting || !phoneValid}
                 className="flex-1 h-12 btn-premium text-base"
               >
                 {submitting ? (
@@ -637,7 +610,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
                 ) : (
                   <>
                     <Smartphone className="w-5 h-5 mr-2" />
-                    Pay {formatKES(selectedService?.deposit_amount ?? 0)} via M-Pesa
+                    Pay {formatKES(selectedService?.deposit_amount ?? 0)}
                   </>
                 )}
               </Button>
@@ -647,61 +620,53 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
       case "payment":
         return (
-          <div className="flex flex-col items-center justify-center py-6 animate-fade-in text-center space-y-6">
-            {/* Phone display */}
-            <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30 w-full">
-              <p className="text-sm text-muted-foreground">M-Pesa prompt sent to</p>
-              <p className="font-bold text-foreground text-lg mt-1">{paymentPhone}</p>
-              <p className="text-xs text-muted-foreground mt-1">
+          <div className="flex flex-col items-center justify-center py-6 animate-fade-in text-center space-y-5">
+            {/* Phone + amount */}
+            <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30 w-full text-left space-y-1">
+              <p className="text-xs text-muted-foreground">M-Pesa prompt sent to</p>
+              <p className="font-bold text-foreground text-lg">{paymentPhone}</p>
+              <p className="text-xs text-muted-foreground">
                 Amount: <span className="font-bold text-primary">{formatKES(selectedService?.deposit_amount ?? 0)}</span>
               </p>
             </div>
 
-            {/* Countdown or expired state */}
             {!paymentExpired ? (
-              <div className="space-y-3">
+              <div className="flex flex-col items-center space-y-3">
                 <CountdownRing
-                  duration={60}
-                  timeLeft={paymentTimeLeft}
+                  progress={progressPercent2}
                   size={120}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Enter your M-Pesa PIN on your phone to complete payment
+                  isUrgent={paymentTimeLeft <= 15}
+                >
+                  <div className="text-center">
+                    <p className="font-bold text-foreground text-xl">{paymentTimeLeft}s</p>
+                  </div>
+                </CountdownRing>
+                <p className="text-sm text-muted-foreground">Enter your M-Pesa PIN to complete payment</p>
+                <p className="text-xs text-muted-foreground">
+                  Didn't get the prompt?{" "}
+                  <button
+                    onClick={handleRetryPayment}
+                    disabled={retrying}
+                    className="text-primary underline disabled:opacity-50"
+                  >
+                    Tap to resend
+                  </button>
                 </p>
               </div>
             ) : (
               <div className="space-y-3 w-full">
                 <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30">
                   <p className="text-sm font-medium text-destructive">Payment window expired</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Your slot is held for a few more minutes
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Your slot is held — tap retry to resend the prompt</p>
                 </div>
-
-                <Button
-                  onClick={handleRetryPayment}
-                  disabled={retrying}
-                  className="w-full h-12 btn-premium"
-                >
-                  {retrying ? (
-                    <LoadingSpinner size="sm" />
-                  ) : (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Resend M-Pesa Prompt
-                    </>
-                  )}
+                <Button onClick={handleRetryPayment} disabled={retrying} className="w-full h-12 btn-premium">
+                  {retrying ? <LoadingSpinner size="sm" /> : <><RefreshCw className="w-4 h-4 mr-2" /> Resend M-Pesa Prompt</>}
                 </Button>
               </div>
             )}
 
-            <Button
-              variant="ghost"
-              onClick={handleCancelPayment}
-              className="text-muted-foreground text-sm gap-2"
-            >
-              <X className="w-4 h-4" />
-              Cancel booking
+            <Button variant="ghost" onClick={handleCancelPayment} className="text-muted-foreground text-sm gap-2">
+              <X className="w-4 h-4" /> Cancel booking
             </Button>
           </div>
         );
@@ -716,18 +681,13 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-amber-400 flex items-center justify-center animate-pulse-soft">
                 <Star className="w-3 h-3 text-amber-900" />
               </div>
-              <div
-                className="absolute -bottom-1 -left-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center animate-pulse-soft"
-                style={{ animationDelay: "0.5s" }}
-              >
+              <div className="absolute -bottom-1 -left-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center animate-pulse-soft" style={{ animationDelay: "0.5s" }}>
                 <Sparkles className="w-2.5 h-2.5 text-primary-foreground" />
               </div>
             </div>
 
             <div>
-              <h3 className="font-display text-2xl font-bold text-gradient mb-2">
-                You're All Set, Queen! 👑
-              </h3>
+              <h3 className="font-display text-2xl font-bold text-gradient mb-2">You're All Set, Queen! 👑</h3>
               <p className="text-muted-foreground max-w-xs mx-auto">
                 Deposit paid. Your slot is confirmed. Get ready to look absolutely stunning!
               </p>
@@ -758,10 +718,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               </CardContent>
             </Card>
 
-            <Button
-              className="btn-premium w-full max-w-sm h-12"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button className="btn-premium w-full max-w-sm h-12" onClick={() => onOpenChange(false)}>
               <Sparkles className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Button>
@@ -784,9 +741,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
           <div className="flex items-center gap-3">
             <span className="text-2xl">{stepConfig.emoji}</span>
             <div>
-              <SheetTitle className="font-display text-xl text-gradient">
-                {stepConfig.title}
-              </SheetTitle>
+              <SheetTitle className="font-display text-xl text-gradient">{stepConfig.title}</SheetTitle>
               <p className="text-sm text-muted-foreground">{stepConfig.subtitle}</p>
             </div>
           </div>

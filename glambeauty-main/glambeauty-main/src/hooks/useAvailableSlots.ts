@@ -38,31 +38,11 @@ export function useAvailableSlots({ salonId, date, serviceDuration, stylistId }:
         .eq("day_of_week", dayOfWeek)
         .single();
 
-    if (!workingHours || workingHours.is_closed) {
+      if (!workingHours || workingHours.is_closed) {
         setSlots([]);
         setLoading(false);
         return;
       }
-
-      // Check if specific stylist has this day off
-      if (stylistId) {
-        const response = await supabase
-          .from("stylist_working_hours")
-          .select("is_off")
-          .eq("stylist_id", stylistId)
-          .eq("day_of_week", dayOfWeek)
-          .single();
-
-        const stylistDay = response.data as { is_off: boolean } | null;
-
-        if (stylistDay?.is_off) {
-          setSlots([]);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Fetch existing bookings for this date
 
       // Fetch existing bookings for this date
       // If stylistId is provided, filter by that stylist only
@@ -143,5 +123,5 @@ export function useAvailableSlots({ salonId, date, serviceDuration, stylistId }:
     };
   }, [salonId, date, serviceDuration, stylistId]);
 
-  return { slots, loading };
+  return { slots, loading, refetch: fetchSlots };
 }
