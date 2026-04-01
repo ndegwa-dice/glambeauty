@@ -28,7 +28,6 @@ export function FeaturedSalonCard({ salon, onSelect, className, style }: Feature
       style={style}
       onClick={() => onSelect(salon)}
     >
-      {/* Featured Badge */}
       <div className="absolute top-3 left-3 z-10">
         <Badge 
           className={cn(
@@ -43,11 +42,10 @@ export function FeaturedSalonCard({ salon, onSelect, className, style }: Feature
         </Badge>
       </div>
 
-      {/* Cover Image */}
       <div className="relative h-40 overflow-hidden">
-        {salon.featured_image_url || salon.cover_image_url ? (
+        {salon.cover_image_url ? (
           <img
-            src={salon.featured_image_url || salon.cover_image_url || ""}
+            src={salon.cover_image_url}
             alt={salon.name}
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           />
@@ -60,10 +58,8 @@ export function FeaturedSalonCard({ salon, onSelect, className, style }: Feature
           )} />
         )}
         
-        {/* Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
         
-        {/* Logo */}
         {salon.logo_url && (
           <div className={cn(
             "absolute bottom-3 left-4 w-14 h-14 rounded-xl bg-card border-2 overflow-hidden shadow-lg",
@@ -77,7 +73,6 @@ export function FeaturedSalonCard({ salon, onSelect, className, style }: Feature
           </div>
         )}
 
-        {/* Sparkle Animation for Premium */}
         {isPremium && (
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             <div className="absolute top-4 right-8 w-2 h-2 bg-amber-400 rounded-full animate-ping opacity-75" />
