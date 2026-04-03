@@ -145,6 +145,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
         submitting.current = false;
         setIsSubmitting(false);
         setIsRetrying(false);
+        setShowPhoneModal(false);
       }, 300);
     }
   }, [open]);
@@ -394,6 +395,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     }
 
     setIsRetrying(false);
+        setShowPhoneModal(false);
   };
 
   const handleCancelPayment = async () => {
@@ -794,6 +796,8 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     </Sheet>
   );
 }
+
+
 
 
 
