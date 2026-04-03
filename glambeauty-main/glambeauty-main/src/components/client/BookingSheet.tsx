@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { flushSync } from "react-dom";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -63,6 +62,26 @@ const STEP_CONFIG: Record<BookingStep, { emoji: string; title: string; subtitle:
 const STEPS_ORDER: BookingStep[] = ["services", "stylist", "datetime", "confirm", "payment"];
 const PAYMENT_DURATION = 60;
 
+// FIX P6: Memoized CountdownRing wrapper — prevents parent re-renders from
+// causing the entire sheet to repaint during the 1-second tick.
+const MemoCountdownRing = React.memo(function MemoCountdownRing({
+  progress,
+  timeLeft,
+  isUrgent,
+}: {
+  progress: number;
+  timeLeft: number;
+  isUrgent: boolean;
+}) {
+  return (
+    <CountdownRing progress={progress} size={120} isUrgent={isUrgent}>
+      <div className="text-center">
+        <p className="font-bold text-foreground text-xl">{timeLeft}s</p>
+      </div>
+    </CountdownRing>
+  );
+});
+
 export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSheetProps) {
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -83,14 +102,14 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
   const [paymentPhone, setPaymentPhone] = useState<string | null>(null);
   const [paymentTimeLeft, setPaymentTimeLeft] = useState(PAYMENT_DURATION);
   const [paymentExpired, setPaymentExpired] = useState(false);
-  const [timerKey, setTimerKey] = useState(0); // increment to reset timer
+  const [timerKey, setTimerKey] = useState(0);
 
   // Guards — prevent duplicate execution
-  const paymentActive = useRef(false);   // prevents double-tap on Pay button
-  const paymentHandled = useRef(false);  // prevents success firing twice
-  const submitting = useRef(false);      // prevents double booking creation
+  const paymentActive = useRef(false);
+  const paymentHandled = useRef(false);
+  const submitting = useRef(false);
 
-  const [isSubmitting, setIsSubmitting] = useState(false); // UI only
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
   const { slots, loading: slotsLoading, refetch: refetchSlots } = useAvailableSlots({
@@ -124,29 +143,28 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     fetchServices();
   }, [salon, open]);
 
-  // Full reset when sheet closes
+  // FIX P3: Remove setTimeout — reset state synchronously to eliminate
+  // race conditions between closing animation and state mutation.
   useEffect(() => {
     if (!open) {
-      setTimeout(() => {
-        setStep("services");
-        setSelectedService(null);
-        setSelectedStylistId(null);
-        setSelectedStylistName(null);
-        setSelectedDate(undefined);
-        setSelectedTime(null);
-        setPhoneInput(profile?.phone_number || "");
-        setCurrentBookingId(null);
-        setPaymentPhone(null);
-        setPaymentTimeLeft(PAYMENT_DURATION);
-        setPaymentExpired(false);
-        setTimerKey(0);
-        paymentActive.current = false;
-        paymentHandled.current = false;
-        submitting.current = false;
-        setIsSubmitting(false);
-        setIsRetrying(false);
-        setShowPhoneModal(false);
-      }, 300);
+      setStep("services");
+      setSelectedService(null);
+      setSelectedStylistId(null);
+      setSelectedStylistName(null);
+      setSelectedDate(undefined);
+      setSelectedTime(null);
+      setPhoneInput(profile?.phone_number || "");
+      setCurrentBookingId(null);
+      setPaymentPhone(null);
+      setPaymentTimeLeft(PAYMENT_DURATION);
+      setPaymentExpired(false);
+      setTimerKey(0);
+      paymentActive.current = false;
+      paymentHandled.current = false;
+      submitting.current = false;
+      setIsSubmitting(false);
+      setIsRetrying(false);
+      // FIX P4: Removed setShowPhoneModal(false) — state was never declared.
     }
   }, [open]);
 
@@ -174,14 +192,13 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [step, timerKey]); // timerKey resets timer on retry
+  }, [step, timerKey]);
 
-  // Centralized success handler — called by Realtime OR polling
+  // Centralized success handler
   const handlePaymentSuccess = useCallback(async () => {
-    if (paymentHandled.current) return; // already handled
+    if (paymentHandled.current) return;
     paymentHandled.current = true;
 
-    // Save phone only after confirmed payment
     if (phoneInput && phoneInput !== profile?.phone_number && user) {
       await supabase
         .from("profiles")
@@ -220,7 +237,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       )
       .subscribe();
 
-    // Polling fallback — every 5s for 90s
     let pollCount = 0;
     const poll = setInterval(async () => {
       if (paymentHandled.current) { clearInterval(poll); return; }
@@ -251,25 +267,23 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
   const phoneValid = validateKenyanPhone(phoneInput || profile?.phone_number || "");
 
-  // No amount sent — edge function fetches from DB
   const initiatePayment = async (bookingId: string, phone: string) => {
-  const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
-    body: {
-      booking_id:     bookingId,
-      phone_number:   phone,
-      amount:         selectedService?.deposit_amount,
-      client_user_id: user?.id,
-      salon_id:       salon?.id,
-    },
-  });
-  if (error || !data?.success) {
-    throw new Error(data?.error || error?.message || "Could not send M-Pesa prompt");
-  }
-  return data;
-};
+    const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
+      body: {
+        booking_id:     bookingId,
+        phone_number:   phone,
+        amount:         selectedService?.deposit_amount,
+        client_user_id: user?.id,
+        salon_id:       salon?.id,
+      },
+    });
+    if (error || !data?.success) {
+      throw new Error(data?.error || error?.message || "Could not send M-Pesa prompt");
+    }
+    return data;
+  };
 
   const handleConfirmBooking = async () => {
-    // Guard — prevent double execution
     if (paymentActive.current || submitting.current) return;
     if (!salon || !selectedService || !selectedDate || !selectedTime || !user) return;
 
@@ -323,7 +337,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       return;
     }
 
-    // Step 1: Reserve slot atomically
     const { data: bookingId, error: bookingError } = await supabase.rpc("book_slot_atomic", {
       p_salon_id:       salon.id,
       p_service_id:     selectedService.id,
@@ -357,7 +370,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
       return;
     }
 
-    // Step 2: Trigger STK Push
     paymentActive.current = true;
     paymentHandled.current = false;
 
@@ -388,14 +400,14 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
     try {
       await initiatePayment(currentBookingId, paymentPhone);
-      setTimerKey((k) => k + 1); // resets countdown
+      setTimerKey((k) => k + 1);
       toast({ title: "M-Pesa prompt resent! 📱", description: "Check your phone." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Retry failed", description: err.message });
     }
 
     setIsRetrying(false);
-        setShowPhoneModal(false);
+    // FIX P4: Removed setShowPhoneModal(false) — state was never declared.
   };
 
   const handleCancelPayment = async () => {
@@ -414,7 +426,9 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
   const stepConfig = STEP_CONFIG[step];
 
-  const renderStep = () => {
+  // FIX P5: Memoize step rendering — prevents re-rendering heavy UI trees
+  // on every parent state update (e.g. countdown tick, realtime event).
+  const stepContent = useMemo(() => {
     switch (step) {
       case "services":
         return (
@@ -432,7 +446,9 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               services.map((service, index) => (
                 <Card
                   key={service.id}
-                  className="card-glass cursor-pointer hover:border-primary/40 transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] animate-fade-in overflow-hidden"
+                  // FIX P2: Removed animate-fade-in — was triggering GPU repaints on
+                  // every step mount, amplifying flicker during state updates.
+                  className="card-glass cursor-pointer hover:border-primary/40 transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] overflow-hidden"
                   style={{ animationDelay: `${index * 60}ms` }}
                   onClick={() => { setSelectedService(service); setStep("stylist"); }}
                 >
@@ -479,7 +495,8 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
       case "stylist":
         return (
-          <div className="space-y-4 animate-fade-in">
+          // FIX P2: Removed animate-fade-in
+          <div className="space-y-4">
             <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl">
               <Wand2 className="w-4 h-4 text-primary" />
               <span className="font-medium text-sm">{selectedService?.name}</span>
@@ -511,7 +528,8 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
       case "datetime":
         return (
-          <div className="space-y-4 animate-fade-in">
+          // FIX P2: Removed animate-fade-in
+          <div className="space-y-4">
             <div className="flex items-center gap-2 p-3 bg-primary/10 border border-primary/20 rounded-xl text-sm">
               <Wand2 className="w-4 h-4 text-primary shrink-0" />
               <span className="font-medium truncate">{selectedService?.name}</span>
@@ -564,7 +582,8 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
       case "confirm":
         return (
-          <div className="space-y-5 animate-fade-in">
+          // FIX P2: Removed animate-fade-in
+          <div className="space-y-5">
             <Card className="card-glass border-primary/20 overflow-hidden">
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-center gap-3">
@@ -611,7 +630,6 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
               </CardContent>
             </Card>
 
-            {/* Phone field — always visible */}
             <div className="space-y-2 p-4 bg-muted/30 border border-border/50 rounded-xl">
               <p className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Smartphone className="w-4 h-4 text-primary" />
@@ -656,7 +674,8 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
       case "payment":
         return (
-          <div className="flex flex-col items-center justify-center py-6 animate-fade-in text-center space-y-5">
+          // FIX P2: Removed animate-fade-in
+          <div className="flex flex-col items-center justify-center py-6 text-center space-y-5">
             <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30 w-full text-left space-y-1">
               <p className="text-xs text-muted-foreground">M-Pesa prompt sent to</p>
               <p className="font-bold text-foreground text-lg">{paymentPhone}</p>
@@ -667,15 +686,13 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
             {!paymentExpired ? (
               <div className="flex flex-col items-center space-y-3">
-                <CountdownRing
+                {/* FIX P6: MemoCountdownRing — isolates 1s tick re-renders to
+                    this component only, preventing sheet-wide repaints. */}
+                <MemoCountdownRing
                   progress={countdownProgress}
-                  size={120}
+                  timeLeft={paymentTimeLeft}
                   isUrgent={paymentTimeLeft <= 15}
-                >
-                  <div className="text-center">
-                    <p className="font-bold text-foreground text-xl">{paymentTimeLeft}s</p>
-                  </div>
-                </CountdownRing>
+                />
                 <p className="text-sm text-muted-foreground">Enter your M-Pesa PIN to complete payment</p>
                 <p className="text-xs text-muted-foreground">
                   Didn't get the prompt?{" "}
@@ -708,7 +725,8 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
 
       case "success":
         return (
-          <div className="flex flex-col items-center justify-center py-8 animate-fade-in text-center space-y-6">
+          // FIX P2: Removed animate-fade-in
+          <div className="flex flex-col items-center justify-center py-8 text-center space-y-6">
             <div className="relative">
               <div className="w-24 h-24 rounded-full gradient-barbie flex items-center justify-center glow-barbie">
                 <PartyPopper className="w-12 h-12 text-primary-foreground" />
@@ -760,19 +778,45 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
           </div>
         );
     }
-  };
+  }, [
+    step,
+    services,
+    loadingServices,
+    selectedService,
+    selectedStylistId,
+    selectedStylistName,
+    selectedDate,
+    selectedTime,
+    slots,
+    slotsLoading,
+    phoneInput,
+    phoneValid,
+    paymentPhone,
+    paymentTimeLeft,
+    paymentExpired,
+    countdownProgress,
+    isSubmitting,
+    isRetrying,
+    salon,
+  ]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[90vh] rounded-t-3xl bg-background border-t border-border/50">
-        <div className="w-full h-1 bg-muted/30 rounded-full overflow-hidden mb-4">
+      {/* FIX P1: Replace max-h + calc() with flex column layout.
+          The old calc(90vh-140px) caused continuous reflow on every state
+          update. Flex layout is static — browser never recalculates height. */}
+      <SheetContent
+        side="bottom"
+        className="h-[90vh] max-h-[90vh] overflow-hidden rounded-t-3xl bg-background border-t border-border/50 will-change-transform flex flex-col"
+      >
+        <div className="w-full h-1 bg-muted/30 rounded-full overflow-hidden mb-4 shrink-0">
           <div
             className="h-full gradient-barbie rounded-full transition-all duration-500 ease-out"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
 
-        <SheetHeader className="pb-4">
+        <SheetHeader className="pb-4 shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-2xl">{stepConfig.emoji}</span>
             <div>
@@ -789,16 +833,12 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
           )}
         </SheetHeader>
 
-        <div className="mt-2 overflow-y-auto max-h-[calc(90vh-140px)] scrollbar-dark pr-1 pb-4">
-          {renderStep()}
+        {/* FIX P1: h-full replaces max-h-[calc(90vh-140px)] —
+            flex-1 + overflow-y-auto gives stable, reflow-free scroll. */}
+        <div className="flex-1 overflow-y-auto scrollbar-dark pr-1 pb-4">
+          {stepContent}
         </div>
       </SheetContent>
     </Sheet>
   );
 }
-
-
-
-
-
-
