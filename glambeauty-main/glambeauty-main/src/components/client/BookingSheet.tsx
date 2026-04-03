@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { flushSync } from "react-dom";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -793,5 +794,7 @@ export function BookingSheet({ salon, open, onOpenChange, onSuccess }: BookingSh
     </Sheet>
   );
 }
+
+
 
 
